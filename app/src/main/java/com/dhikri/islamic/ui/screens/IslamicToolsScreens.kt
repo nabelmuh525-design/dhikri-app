@@ -7,7 +7,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.icu.text.DateFormat
-import android.icu.util.IslamicUmalquraCalendar
+import android.icu.util.Calendar
 import android.icu.util.ULocale
 import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
@@ -396,7 +396,7 @@ fun HijriCalendarScreen(onBack: () -> Unit) {
     val hijriFormatted = remember {
         runCatching {
             val locale = ULocale("ar@calendar=islamic-umalqura")
-            val cal = IslamicUmalquraCalendar(locale)
+            val cal = Calendar.getInstance(locale)
             DateFormat.getDateInstance(DateFormat.FULL, locale).format(cal)
         }.getOrElse { "التقويم الهجري — أم القرى" }
     }
