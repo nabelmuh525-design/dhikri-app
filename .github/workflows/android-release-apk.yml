@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-release-apk:
@@ -35,10 +35,23 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Decode Fixed Release Keystore (if configured in Secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.DHIKRI_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > "${{ github.workspace }}/dhikri-release.jks"
+            echo "DHIKRI_KEYSTORE_PATH=${{ github.workspace }}/dhikri-release.jks" >> $GITHUB_ENV
+          fi
+
       - name: Run Unit Tests
         run: gradle testDebugUnitTest --stacktrace
 
       - name: Build Release APK
+        env:
+          DHIKRI_KEYSTORE_PASSWORD: ${{ secrets.DHIKRI_KEYSTORE_PASSWORD }}
+          DHIKRI_KEY_ALIAS: ${{ secrets.DHIKRI_KEY_ALIAS }}
+          DHIKRI_KEY_PASSWORD: ${{ secrets.DHIKRI_KEY_PASSWORD }}
         run: gradle assembleRelease --stacktrace
 
       - name: Upload DHIKRI Release APK Artifact
@@ -47,3 +60,18 @@ jobs:
           name: DHIKRI-Release-APK
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+      - name: Extract App Version & Publish GitHub Release
+        id: meta
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          cp app/build/outputs/apk/release/*.apk "DHIKRI-v${VERSION}.apk"
+
+      - name: Publish Release for In-App Auto-Update
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.meta.outputs.version }}
+          name: "ذِكري v${{ steps.meta.outputs.version }}"
+          body: "إصدار تطبيق ذِكري v${{ steps.meta.outputs.version }} — التحديث التلقائي المباشر."
+          files: DHIKRI-v${{ steps.meta.outputs.version }}.apk
