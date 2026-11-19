@@ -184,54 +184,58 @@ fun MushafReaderScreen(
         containerColor = palette.background,
         topBar = {
             if (!isFullScreen) {
-            DhikriCompactTopBar(
-                title = headerSurah?.let { "سورة ${it.nameArabic}" } ?: "المصحف الشريف",
-                subtitle = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
-                onBack = onBack,
-                actions = {
-                    IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp - 2f) }
-            ) {
-                        Icon(Icons.Default.TextDecrease, contentDescription = "تصغير الخط")
+                DhikriCompactTopBar(
+                    title = headerSurah?.let { "سورة ${it.nameArabic}" } ?: "المصحف الشريف",
+                    subtitle = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
+                    onBack = onBack,
+                    actions = {
+                        IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp - 2f) }) {
+                            Icon(Icons.Default.TextDecrease, contentDescription = "تصغير الخط")
+                        }
+                        IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp + 2f) }) {
+                            Icon(Icons.Default.TextIncrease, contentDescription = "تكبير الخط")
+                        }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = "ألوان القراءة لراحة العين")
+                        }
+                        IconButton(onClick = { isFullScreen = true }) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = "ملء الشاشة")
+                        }
                     }
-                    IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp + 2f) }) {
-                        Icon(Icons.Default.TextIncrease, contentDescription = "تكبير الخط")
-                    }
-                    IconButton(onClick = { showThemePicker = true }) {
-                        Icon(Icons.Default.Palette, contentDescription = "ألوان القراءة لراحة العين")
-                    }
-                }
-            )
+                )
+            }
         },
         bottomBar = {
-            Surface(color = palette.surface, tonalElevation = 3.dp) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { if (currentPage > 1) currentPage-- },
-                        enabled = currentPage > 1
-                    ) { Text("الصفحة السابقة") }
+            if (!isFullScreen) {
+                Surface(color = palette.surface, tonalElevation = 3.dp) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { if (currentPage > 1) currentPage-- },
+                            enabled = currentPage > 1
+                        ) { Text("الصفحة السابقة") }
 
-                    Text("$currentPage / 604", fontWeight = FontWeight.Bold, color = palette.textColor)
+                        Text("$currentPage / 604", fontWeight = FontWeight.Bold, color = palette.textColor)
 
-                    Button(
-                        onClick = { if (currentPage < 604) currentPage++ },
-                        enabled = currentPage < 604
-                    ) { Text("الصفحة التالية") }
+                        Button(
+                            onClick = { if (currentPage < 604) currentPage++ },
+                            enabled = currentPage < 604
+                        ) { Text("الصفحة التالية") }
+                    }
                 }
-            }
             }
         }
     ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -302,6 +306,28 @@ fun MushafReaderScreen(
                 }
                 HorizontalDivider(color = palette.dividerColor.copy(alpha = 0.55f))
             }
+        }
+        if (isFullScreen) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(10.dp)
+                    .clickable { isFullScreen = false },
+                shape = RoundedCornerShape(14.dp),
+                color = com.dhikri.islamic.ui.theme.EmeraldDark.copy(alpha = 0.82f),
+                border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.FullscreenExit, contentDescription = "إظهار الأشرطة", tint = SoftGold, modifier = Modifier.size(16.dp))
+                    Text("إظهار الأشرطة", color = androidx.compose.ui.graphics.Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         }
     }
 
