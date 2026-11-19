@@ -4,6 +4,7 @@ Downloads official Arabic Tafsir & Word Meanings directly from QuranEnc.com API
 (arabic_moyassar & arabic_seraj) without altering a single character, verifies
 HTTPS host, zip size limits, SQL identifiers, counts and version metadata, and
 embeds them into dhikri_database.db.
+Gracefully falls back to the bundled offline database if QuranEnc is temporarily unreachable.
 """
 
 import hashlib
@@ -12,6 +13,7 @@ import json
 import re
 import sqlite3
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 import zipfile
@@ -37,11 +39,20 @@ def validate_sql_ident(ident: str) -> str:
     return ident
 
 
-def fetch_json(url: str) -> dict:
+def fetch_json(url: str, retries: int = 2) -> dict:
     validate_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": "DHIKRI-Android-Builder/1.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    last_err = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "DHIKRI-Android-Builder/1.0"})
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            last_err = exc
+            print(f"[WARN] Attempt {attempt + 1}/{retries} failed for {url}: {exc}")
+            if attempt + 1 < retries:
+                time.sleep(3)
+    raise last_err
 
 
 def download_bytes(url: str) -> bytes:
@@ -141,29 +152,37 @@ def import_via_sura_api(conn: sqlite3.Connection, book_key: str, version: str):
 def main():
     if not DB_PATH.exists():
         raise FileNotFoundError(f"Database not found at {DB_PATH}")
-    catalog = fetch_json(API_LIST_URL).get("translations", [])
+    try:
+        catalog = fetch_json(API_LIST_URL).get("translations", [])
+    except Exception as exc:
+        print(f"[WARN] QuranEnc API temporarily unreachable ({exc}); continuing build with bundled offline database.")
+        return
+
     by_key = {item["key"]: item for item in catalog}
-
     conn = sqlite3.connect(str(DB_PATH))
-    for key in TARGET_KEYS:
-        meta = by_key.get(key)
-        if not meta:
-            print(f"[WARN] {key} not found in QuranEnc Arabic catalog; skipping.")
-            continue
-        version = str(meta.get("version", "1.0"))
-        db_url = meta.get("database_url")
-        if db_url:
-            try:
-                raw_zip = download_bytes(db_url)
-                import_from_sqlite_zip(conn, key, raw_zip, version)
+    try:
+        for key in TARGET_KEYS:
+            meta = by_key.get(key)
+            if not meta:
+                print(f"[WARN] {key} not found in QuranEnc Arabic catalog; skipping.")
                 continue
+            version = str(meta.get("version", "1.0"))
+            db_url = meta.get("database_url")
+            if db_url:
+                try:
+                    raw_zip = download_bytes(db_url)
+                    import_from_sqlite_zip(conn, key, raw_zip, version)
+                    continue
+                except Exception as exc:
+                    print(f"[WARN] SQLite zip import failed for {key} ({exc}); falling back to sura API...")
+            try:
+                import_via_sura_api(conn, key, version)
             except Exception as exc:
-                print(f"[WARN] SQLite zip import failed for {key} ({exc}); falling back to sura API...")
-        import_via_sura_api(conn, key, version)
-
-    conn.execute("VACUUM;")
-    conn.close()
-    print("QuranEnc offline tafsir enrichment complete.")
+                print(f"[WARN] Sura API failed for {key} ({exc}); keeping bundled offline data.")
+        conn.execute("VACUUM;")
+    finally:
+        conn.close()
+    print("QuranEnc offline tafsir enrichment step finished.")
 
 
 if __name__ == "__main__":
