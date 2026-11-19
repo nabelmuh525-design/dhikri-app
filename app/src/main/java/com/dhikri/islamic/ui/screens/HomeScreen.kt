@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,7 +17,12 @@ import android.icu.text.DateFormat
 import android.icu.util.Calendar
 import android.icu.util.ULocale
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.R
+import com.dhikri.islamic.domain.util.PrayerTimesCalculator
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.HafsFontFamily
 import com.dhikri.islamic.ui.theme.SoftGold
@@ -62,6 +69,23 @@ fun HomeScreen(
     val availableUpdate by viewModel.availableUpdate.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
     val context = LocalContext.current
+    val systemDark = isSystemInDarkTheme()
+    val effectiveDark = when (settings.themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> systemDark
+    }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showCityPicker by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+    val prayerSchedule = remember(settings.prayerCityName, nowMillis / 1000L) {
+        PrayerTimesCalculator.computeSchedule(settings.prayerCityName, nowMillis)
+    }
 
     val lastSurahName = surahs.firstOrNull { it.id == (lastRead?.surahId ?: 1) }?.nameArabic ?: "الفاتحة"
     val lastPage = lastRead?.pageNumber ?: 1
@@ -167,15 +191,15 @@ fun HomeScreen(
                 }
 
                 IconButton(
-                    onClick = { viewModel.setDarkMode(!settings.darkMode) },
+                    onClick = { viewModel.setDarkMode(!effectiveDark) },
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(EmeraldDark.copy(alpha = 0.85f))
                 ) {
                     Icon(
-                        imageVector = if (settings.darkMode) Icons.Default.DarkMode else Icons.Default.WbSunny,
-                        contentDescription = if (settings.darkMode) "الوضع الداكن" else "الوضع الفاتح",
+                        imageVector = if (effectiveDark) Icons.Default.DarkMode else Icons.Default.WbSunny,
+                        contentDescription = if (effectiveDark) "الوضع الداكن" else "الوضع الفاتح",
                         tint = SoftGold
                     )
                 }
@@ -370,6 +394,163 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Prayer Times & Live Countdown Card (مواقيت الصلاة والعدّ التنازلي)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .shadow(4.dp, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = EmeraldDark,
+            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.65f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF14345E), EmeraldDark)
+                        )
+                    )
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "الصلاة القادمة: ${prayerSchedule.nextPrayer.nameArabic} • ${prayerSchedule.nextPrayer.formatted12h()}",
+                            color = SoftGold,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "متبقي ${PrayerTimesCalculator.formatCountdown(prayerSchedule.millisRemaining)}",
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { showCityPicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(Icons.Default.LocationOn, contentDescription = "المدينة", tint = SoftGold, modifier = Modifier.size(14.dp))
+                                Text(prayerSchedule.city.nameArabic, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                viewModel.setPreAdhanReminderEnabled(context, !settings.preAdhanReminderEnabled)
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (settings.preAdhanReminderEnabled) SoftGold.copy(alpha = 0.25f)
+                                    else Color.White.copy(alpha = 0.10f)
+                                )
+                        ) {
+                            Icon(
+                                imageVector = if (settings.preAdhanReminderEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                                contentDescription = "تنبيه قبل الأذان",
+                                tint = if (settings.preAdhanReminderEnabled) SoftGold else Color.White.copy(alpha = 0.75f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    prayerSchedule.prayers.forEach { p ->
+                        val isNext = p.nameArabic == prayerSchedule.nextPrayer.nameArabic
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isNext) SoftGold.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f),
+                            border = if (isNext) BorderStroke(1.dp, SoftGold) else null
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = p.nameArabic,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isNext) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isNext) SoftGold else Color.White.copy(alpha = 0.85f),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = p.formatted12h().replace(" ص", "").replace(" م", ""),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showCityPicker) {
+            AlertDialog(
+                onDismissRequest = { showCityPicker = false },
+                title = { Text("اختر مدينتك لمواقيت الصلاة", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        PrayerTimesCalculator.cities.forEach { city ->
+                            val selected = city.nameArabic == settings.prayerCityName
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setPrayerCityName(context, city.nameArabic)
+                                        showCityPicker = false
+                                    },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (selected) EmeraldDark else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = city.nameArabic,
+                                    color = if (selected) SoftGold else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showCityPicker = false }) { Text("إغلاق") }
+                }
+            )
         }
 
         Spacer(Modifier.height(14.dp))

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,12 +65,18 @@ fun MushafReaderScreen(
     var selectedAyah by remember { mutableStateOf<AyahEntity?>(null) }
     var selectedTafsirEntries by remember { mutableStateOf<List<TafsirEntryEntity>>(emptyList()) }
     var showThemePicker by remember { mutableStateOf(false) }
+    var isFullScreen by remember { mutableStateOf(false) }
     var isPlayingAyahAudio by remember { mutableStateOf(false) }
     var audioStatusText by remember { mutableStateOf<String?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
     val context = LocalContext.current
+    val currentView = LocalView.current
+    DisposableEffect(currentView) {
+        currentView.keepScreenOn = true
+        onDispose { currentView.keepScreenOn = false }
+    }
     val clipboard = LocalClipboardManager.current
 
     val palette = readingThemeByKey(settings.readingThemeKey)
@@ -162,8 +169,12 @@ fun MushafReaderScreen(
         }
     }
 
-    BackHandler(enabled = selectedAyah != null || showThemePicker) {
-        if (showThemePicker) showThemePicker = false else selectedAyah = null
+    BackHandler(enabled = selectedAyah != null || showThemePicker || isFullScreen) {
+        when {
+            showThemePicker -> showThemePicker = false
+            selectedAyah != null -> selectedAyah = null
+            isFullScreen -> isFullScreen = false
+        }
     }
 
     val firstAyah = ayahs.firstOrNull()
@@ -172,6 +183,7 @@ fun MushafReaderScreen(
     Scaffold(
         containerColor = palette.background,
         topBar = {
+            if (!isFullScreen) {
             DhikriCompactTopBar(
                 title = headerSurah?.let { "سورة ${it.nameArabic}" } ?: "المصحف الشريف",
                 subtitle = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
@@ -211,6 +223,7 @@ fun MushafReaderScreen(
                         enabled = currentPage < 604
                     ) { Text("الصفحة التالية") }
                 }
+            }
             }
         }
     ) { padding ->

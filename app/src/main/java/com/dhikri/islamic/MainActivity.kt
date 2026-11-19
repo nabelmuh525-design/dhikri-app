@@ -11,6 +11,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,10 +74,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(settings.darkMode) {
+            val systemDark = isSystemInDarkTheme()
+            val effectiveDark = when (settings.themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> systemDark
+            }
+
+            LaunchedEffect(effectiveDark) {
                 enableEdgeToEdge(
                     statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-                    navigationBarStyle = if (settings.darkMode) {
+                    navigationBarStyle = if (effectiveDark) {
                         SystemBarStyle.dark(Color.TRANSPARENT)
                     } else {
                         SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
@@ -85,7 +93,7 @@ class MainActivity : ComponentActivity() {
             }
 
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                DhikriTheme(darkTheme = settings.darkMode) {
+                DhikriTheme(darkTheme = effectiveDark) {
                     DhikriAppShell(viewModel = vm)
                 }
             }

@@ -14,25 +14,29 @@ private val Context.dataStore by preferencesDataStore(name = "dhikri_user_settin
 
 data class UserSettings(
     val darkMode: Boolean = false,
+    val themeMode: String = "system", // "system", "light", "dark"
     val nightReadingMode: Boolean = false,
     val readingThemeKey: String = "parchment",
     val mushafFontSizeSp: Float = 26f,
     val uiFontScale: Float = 1.0f,
     val vibrationEnabled: Boolean = true,
-    val soundEnabled: Boolean = false,
+    val soundEnabled: Boolean = true,
     val notificationsEnabled: Boolean = false,
     val lastTasbihPresetId: Int = 1,
     val useHafsV20Text: Boolean = true,
     val khatmahDays: Int = 30,
     val khatmahCurrentPage: Int = 1,
     val khatmahActive: Boolean = false,
-    val dailyTasbihGoal: Int = 100
+    val dailyTasbihGoal: Int = 100,
+    val prayerCityName: String = "عمّان",
+    val preAdhanReminderEnabled: Boolean = false
 )
 
 class UserSettingsRepository(private val context: Context) {
 
     private object Keys {
         val DARK_MODE = booleanPreferencesKey("dark_mode")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
         val NIGHT_READING = booleanPreferencesKey("night_reading")
         val READING_THEME_KEY = stringPreferencesKey("reading_theme_key")
         val MUSHAF_FONT_SIZE = floatPreferencesKey("mushaf_font_size_sp")
@@ -46,31 +50,61 @@ class UserSettingsRepository(private val context: Context) {
         val KHATMAH_CURRENT_PAGE = intPreferencesKey("khatmah_current_page")
         val KHATMAH_ACTIVE = booleanPreferencesKey("khatmah_active")
         val DAILY_TASBIH_GOAL = intPreferencesKey("daily_tasbih_goal")
+        val PRAYER_CITY_NAME = stringPreferencesKey("prayer_city_name")
+        val PRE_ADHAN_REMINDER = booleanPreferencesKey("pre_adhan_reminder")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
         val nightLegacy = prefs[Keys.NIGHT_READING] ?: false
         val savedTheme = prefs[Keys.READING_THEME_KEY] ?: if (nightLegacy) "amoled_dark" else "parchment"
+        val legacyDark = prefs[Keys.DARK_MODE] ?: false
+        val savedThemeMode = prefs[Keys.THEME_MODE] ?: if (prefs.contains(Keys.DARK_MODE)) {
+            if (legacyDark) "dark" else "light"
+        } else {
+            "system"
+        }
         UserSettings(
-            darkMode = prefs[Keys.DARK_MODE] ?: false,
+            darkMode = legacyDark,
+            themeMode = savedThemeMode,
             nightReadingMode = nightLegacy,
             readingThemeKey = savedTheme,
             mushafFontSizeSp = prefs[Keys.MUSHAF_FONT_SIZE] ?: 26f,
             uiFontScale = prefs[Keys.UI_FONT_SCALE] ?: 1.0f,
             vibrationEnabled = prefs[Keys.VIBRATION_ENABLED] ?: true,
-            soundEnabled = prefs[Keys.SOUND_ENABLED] ?: false,
+            soundEnabled = prefs[Keys.SOUND_ENABLED] ?: true,
             notificationsEnabled = prefs[Keys.NOTIFICATIONS_ENABLED] ?: false,
             lastTasbihPresetId = prefs[Keys.LAST_TASBIH_PRESET_ID] ?: 1,
             useHafsV20Text = prefs[Keys.USE_HAFS_V20_TEXT] ?: true,
             khatmahDays = prefs[Keys.KHATMAH_DAYS] ?: 30,
             khatmahCurrentPage = prefs[Keys.KHATMAH_CURRENT_PAGE] ?: 1,
             khatmahActive = prefs[Keys.KHATMAH_ACTIVE] ?: false,
-            dailyTasbihGoal = prefs[Keys.DAILY_TASBIH_GOAL] ?: 100
+            dailyTasbihGoal = prefs[Keys.DAILY_TASBIH_GOAL] ?: 100,
+            prayerCityName = prefs[Keys.PRAYER_CITY_NAME] ?: "عمّان",
+            preAdhanReminderEnabled = prefs[Keys.PRE_ADHAN_REMINDER] ?: false
         )
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.DARK_MODE] = enabled }
+        context.dataStore.edit {
+            it[Keys.DARK_MODE] = enabled
+            it[Keys.THEME_MODE] = if (enabled) "dark" else "light"
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit {
+            it[Keys.THEME_MODE] = mode
+            if (mode == "dark") it[Keys.DARK_MODE] = true
+            if (mode == "light") it[Keys.DARK_MODE] = false
+        }
+    }
+
+    suspend fun setPrayerCityName(cityName: String) {
+        context.dataStore.edit { it[Keys.PRAYER_CITY_NAME] = cityName }
+    }
+
+    suspend fun setPreAdhanReminderEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.PRE_ADHAN_REMINDER] = enabled }
     }
 
     suspend fun setNightReadingMode(enabled: Boolean) {

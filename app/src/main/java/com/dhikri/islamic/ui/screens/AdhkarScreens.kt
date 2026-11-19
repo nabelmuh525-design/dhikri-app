@@ -24,7 +24,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -278,6 +280,7 @@ fun AdhkarDetailScreen(
 
     Scaffold(
         topBar = {
+            if (!isFullScreen) {
             DhikriCompactTopBar(
                 title = screenTitle,
                 subtitle = if (itemsList.isNotEmpty()) "أتممت $completedCount من ${itemsList.size}" else null,
@@ -292,11 +295,16 @@ fun AdhkarDetailScreen(
                     IconButton(onClick = { progressMap.clear() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "إعادة التصفير")
                     }
+                    IconButton(onClick = { isFullScreen = true }) {
+                        Icon(Icons.Default.Fullscreen, contentDescription = "ملء الشاشة")
+                    }
                 }
             )
+            }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize()) {
             if (itemsList.isNotEmpty()) {
                 LinearProgressIndicator(
                     progress = { completedCount.toFloat() / itemsList.size.toFloat() },
@@ -379,6 +387,28 @@ fun AdhkarDetailScreen(
                     }
                 }
             }
+        }
+        if (isFullScreen) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(10.dp)
+                    .clickable { isFullScreen = false },
+                shape = RoundedCornerShape(14.dp),
+                color = EmeraldDark.copy(alpha = 0.82f),
+                border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.FullscreenExit, contentDescription = "إظهار الأشرطة", tint = SoftGold, modifier = Modifier.size(16.dp))
+                    Text("إظهار الأشرطة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         }
     }
 }

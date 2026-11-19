@@ -1,54 +1,117 @@
 package com.dhikri.islamic.ui.screens
 
-import com.dhikri.islamic.ui.components.DhikriCompactTopBar
-
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.view.SoundEffectConstants
+import android.os.VibratorManager
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dhikri.islamic.R
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 import com.dhikri.islamic.ui.theme.EmeraldDark
-import com.dhikri.islamic.ui.theme.EmeraldPrimary
 import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.sin
+
+private object TasbihBeadSoundPlayer {
+    private const val SAMPLE_RATE = 22050
+    private val beadSamples: ShortArray by lazy { synthesizeBeadClick() }
+
+    private fun synthesizeBeadClick(): ShortArray {
+        val durationSec = 0.028 // crisp 28ms wooden/amber bead knock
+        val count = (SAMPLE_RATE * durationSec).toInt()
+        val buf = ShortArray(count)
+        for (i in 0 until count) {
+            val t = i.toDouble() / SAMPLE_RATE
+            // Warm wooden fundamental + subtle bright bead click transient
+            val env1 = exp(-t * 165.0)
+            val env2 = exp(-t * 420.0)
+            val f1 = 760.0 + 280.0 * exp(-t * 220.0)
+            val f2 = 1950.0
+            val sample = (0.68 * sin(2.0 * PI * f1 * t) * env1) +
+                (0.32 * sin(2.0 * PI * f2 * t) * env2)
+            buf[i] = (sample * 22000.0).toInt().coerceIn(-32767, 32767).toShort()
+        }
+        return buf
+    }
+
+    fun play() {
+        runCatching {
+            val minBuf = AudioTrack.getMinBufferSize(
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+            val bufBytes = maxOf(minBuf, beadSamples.size * 2)
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufBytes)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            track.write(beadSamples, 0, beadSamples.size)
+            track.play()
+            Thread {
+                runCatching {
+                    Thread.sleep(60)
+                    track.stop()
+                    track.release()
+                }
+            }.start()
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,88 +120,98 @@ fun TasbihScreen(
     onBack: () -> Unit
 ) {
     val presets by viewModel.tasbihPresets.collectAsState()
-    val settings by viewModel.settings.collectAsState()
     val todayTotal by viewModel.todayTasbihTotal.collectAsState()
-
-    var selectedId by remember(settings.lastTasbihPresetId) { mutableIntStateOf(settings.lastTasbihPresetId) }
-    val activePreset = presets.firstOrNull { it.id == selectedId } ?: presets.firstOrNull()
-
-    var showAddDialog by remember { mutableStateOf(false) }
-    var customPhrase by remember { mutableStateOf("") }
-    var customTarget by remember { mutableStateOf("33") }
+    val settings by viewModel.settings.collectAsState()
 
     val context = LocalContext.current
-    val view = LocalView.current
-    val toneGenerator = remember {
-        runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 85) }.getOrNull()
-    }
-    DisposableEffect(Unit) {
-        onDispose { toneGenerator?.release() }
+    val scope = rememberCoroutineScope()
+
+    var selectedPresetId by remember(settings.lastTasbihPresetId) { mutableIntStateOf(settings.lastTasbihPresetId) }
+    val activePreset = presets.firstOrNull { it.id == selectedPresetId } ?: presets.firstOrNull()
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showGoalDialog by remember { mutableStateOf(false) }
+    var customPhrase by remember { mutableStateOf("") }
+    var customTarget by remember { mutableStateOf("33") }
+    var goalInput by remember(settings.dailyTasbihGoal) { mutableStateOf(settings.dailyTasbihGoal.toString()) }
+    var isPressed by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = showAddDialog || showGoalDialog) {
+        showAddDialog = false
+        showGoalDialog = false
     }
 
-    fun triggerFeedback() {
+    val buttonScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+        label = "tasbih_scale"
+    )
+
+    val target = (activePreset?.targetCount ?: 33).coerceAtLeast(1)
+    val current = activePreset?.currentCount ?: 0
+    val cycleProgress = ((current % target).let { if (it == 0 && current > 0) target else it }).toFloat() / target.toFloat()
+    val animatedProgress by animateFloatAsState(
+        targetValue = cycleProgress.coerceIn(0f, 1f),
+        animationSpec = tween(220),
+        label = "tasbih_ring"
+    )
+    val completedRounds = current / target
+
+    fun triggerFeedback(isRoundComplete: Boolean) {
+        if (settings.soundEnabled) {
+            scope.launch(Dispatchers.IO) { TasbihBeadSoundPlayer.play() }
+        }
         if (settings.vibrationEnabled) {
-            @Suppress("DEPRECATION")
-            val vib = context.getSystemService(Vibrator::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vib?.vibrate(VibrationEffect.createOneShot(25, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vib?.vibrate(25)
+            runCatching {
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                }
+                val duration = if (isRoundComplete) 85L else 22L
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(duration)
+                }
             }
         }
-        if (settings.soundEnabled) {
-            runCatching { toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 45) }
-            runCatching { view.playSoundEffect(SoundEffectConstants.CLICK) }
-        }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Subtle sunrise mosque ambient backdrop matching 1000000481.png
-        Image(
-            painter = painterResource(id = R.drawable.home_header_bg),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xD8FAF5E8),
-                            Color(0xEBFAF5E8),
-                            Color(0xF5F4ECD9)
-                        )
-                    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF071428), EmeraldDark, Color(0xFF132D54))
                 )
-        )
-
+            )
+    ) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
                 DhikriCompactTopBar(
-                    title = "عداد التسبيح",
+                    title = "المسبحة الإلكترونية",
                     onBack = onBack,
                     actions = {
-                        IconButton(onClick = { viewModel.setVibrationEnabled(!settings.vibrationEnabled) }
-                ) {
+                        IconButton(onClick = { viewModel.setVibrationEnabled(!settings.vibrationEnabled) }) {
                             Icon(
                                 if (settings.vibrationEnabled) Icons.Default.Vibration else Icons.Default.DoNotDisturbOn,
                                 contentDescription = "الاهتزاز",
-                                tint = EmeraldDark
+                                tint = SoftGold
                             )
                         }
                         IconButton(onClick = { viewModel.setSoundEnabled(!settings.soundEnabled) }) {
                             Icon(
                                 if (settings.soundEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                contentDescription = "صوت النقر",
-                                tint = EmeraldDark
+                                contentDescription = "صوت خرز السبحة",
+                                tint = SoftGold
                             )
                         }
                         IconButton(onClick = { showAddDialog = true }) {
-                            Icon(Icons.Default.AddCircleOutline, contentDescription = "إضافة ذكر مخصص", tint = EmeraldDark)
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = "إضافة ذكر", tint = SoftGold)
                         }
                     }
                 )
@@ -148,267 +221,236 @@ fun TasbihScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Emerald & Gold Header Plaque (matching mockup)
+                // 1. Horizontal Dhikr Phrase Chips
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(presets, key = { it.id }) { preset ->
+                        val selected = preset.id == activePreset?.id
+                        Surface(
+                            modifier = Modifier.clickable {
+                                selectedPresetId = preset.id
+                                viewModel.setLastTasbihPresetId(preset.id)
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (selected) SoftGold else Color(0xFF152D4F).copy(alpha = 0.85f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) Color(0xFFFFE599) else SoftGold.copy(alpha = 0.35f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = preset.phraseArabic,
+                                    color = if (selected) Color(0xFF1F1604) else Color.White,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (selected) Color(0xFF1F1604).copy(alpha = 0.16f) else SoftGold.copy(alpha = 0.22f)
+                                ) {
+                                    Text(
+                                        text = "${preset.targetCount}",
+                                        color = if (selected) Color(0xFF1F1604) else SoftGold,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Active Dhikr Banner
                 Surface(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    color = EmeraldDark,
-                    border = BorderStroke(2.dp, SoftGold),
-                    shadowElevation = 6.dp
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF122847).copy(alpha = 0.85f),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = activePreset?.phraseArabic ?: "سبحان الله",
-                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFF2C6),
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = activePreset?.sourceNote ?: "سبحان الله .. والحمد لله .. والله أكبر",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.82f),
-                            textAlign = TextAlign.Center
+                            text = "الهدف: $target  •  الدورات المكتملة: $completedRounds",
+                            color = SoftGold,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
 
-                // 2. Large Center Golden-Rimmed Counter + Encouragement Badge
-                activePreset?.let { preset ->
-                    val ringProgress = (preset.currentCount.toFloat() / preset.targetCount.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-                    val goalDone = todayTotal >= settings.dailyTasbihGoal
+                // 3. Centerpiece Golden Bezel Interactive Tasbih Medallion
+                Box(
+                    modifier = Modifier
+                        .size(258.dp)
+                        .scale(buttonScale)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            activePreset?.let { p ->
+                                isPressed = true
+                                val nextCount = p.currentCount + 1
+                                triggerFeedback(nextCount % target == 0)
+                                viewModel.incrementTasbih(p)
+                                scope.launch {
+                                    delay(95)
+                                    isPressed = false
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.12f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                listOf(SoftGold, Color(0xFFFFE599), Color(0xFFB88A1E), SoftGold)
+                            ),
+                            startAngle = -90f,
+                            sweepAngle = 360f * animatedProgress,
+                            useCenter = false,
+                            style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
 
                     Box(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .size(204.dp)
+                            .shadow(14.dp, CircleShape)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(Color(0xFF1B4173), Color(0xFF0C2140), Color(0xFF071326))
+                                )
+                            )
+                            .border(2.dp, SoftGold.copy(alpha = 0.78f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Main Golden Ring Counter Button
-                        Box(
-                            modifier = Modifier
-                                .size(230.dp)
-                                .shadow(12.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFFF3D47E), Color(0xFFB88625), Color(0xFFE7C25D))
-                                    )
-                                )
-                                .clickable {
-                                    viewModel.incrementTasbih(preset)
-                                    triggerFeedback()
-                                }
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFBF5E6)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                                    drawArc(
-                                        color = Color(0xFFE5D8B8),
-                                        startAngle = -90f,
-                                        sweepAngle = 360f,
-                                        useCenter = false,
-                                        style = Stroke(width = 10f, cap = StrokeCap.Round)
-                                    )
-                                    drawArc(
-                                        color = EmeraldPrimary,
-                                        startAngle = -90f,
-                                        sweepAngle = 360f * ringProgress,
-                                        useCenter = false,
-                                        style = Stroke(width = 10f, cap = StrokeCap.Round)
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "${preset.currentCount}",
-                                        fontSize = 68.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = EmeraldDark
-                                    )
-                                    Text(
-                                        text = "مرة  •  الهدف ${preset.targetCount}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color(0xFF4A3B1B),
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
-                        }
-
-                        // Floating Warm-Gold Encouragement Badge (matching "أحسنت — مستمر في الذكر")
-                        if (preset.currentCount > 0 || todayTotal > 0) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .offset(x = 2.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFFF6D99A),
-                                border = BorderStroke(1.2.dp, Color(0xFFC59332)),
-                                shadowElevation = 4.dp
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = if (goalDone) "ما شاء الله!" else "أحسنت",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = EmeraldDark
-                                    )
-                                    Text(
-                                        text = if (goalDone) "أتممت هدفك" else "مستمر في\\nالذكر",
-                                        fontSize = 11.sp,
-                                        lineHeight = 14.sp,
-                                        color = Color(0xFF3A2D12),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. Three Circular Buttons: (+)  (إعادة)  (-)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // (+) Button
-                        Box(
-                            modifier = Modifier
-                                .size(62.dp)
-                                .shadow(5.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(Color(0xFFF5D89B))
-                                .border(2.dp, SoftGold, CircleShape)
-                                .clickable {
-                                    viewModel.incrementTasbih(preset)
-                                    triggerFeedback()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "زيادة", tint = EmeraldDark, modifier = Modifier.size(30.dp))
-                        }
-
-                        // Center (إعادة) Reset Button
-                        Box(
-                            modifier = Modifier
-                                .size(78.dp)
-                                .shadow(6.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(EmeraldDark)
-                                .border(2.5.dp, SoftGold, CircleShape)
-                                .clickable { viewModel.resetTasbih(preset) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.Refresh, contentDescription = "إعادة التصفير", tint = Color.White, modifier = Modifier.size(26.dp))
-                                Text("إعادة", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        // (-) Button
-                        Box(
-                            modifier = Modifier
-                                .size(62.dp)
-                                .shadow(5.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(Color(0xFFF5D89B))
-                                .border(2.dp, SoftGold, CircleShape)
-                                .clickable { viewModel.decrementTasbih(preset) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Remove, contentDescription = "إنقاص", tint = EmeraldDark, modifier = Modifier.size(30.dp))
-                        }
-                    }
-                }
-
-                // 4. Below Counter: Dhikr Selector (اختيار الذكر)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF4)),
-                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("اختيار الذكر", fontWeight = FontWeight.Bold, color = EmeraldDark)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(presets, key = { it.id }) { p ->
-                                FilterChip(
-                                    selected = p.id == activePreset?.id,
-                                    onClick = {
-                                        selectedId = p.id
-                                        viewModel.setLastTasbihPresetId(p.id)
-                                    },
-                                    label = { Text(p.phraseArabic.take(24)) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 5. Below Counter: Daily Goal & Progress (الهدف اليومي)
-                val dailyProgress = (todayTotal.toFloat() / settings.dailyTasbihGoal.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF4)),
-                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("الهدف اليومي للتسبيح", fontWeight = FontWeight.Bold, color = EmeraldDark)
-                            Text("$todayTotal / ${settings.dailyTasbihGoal}", fontWeight = FontWeight.Bold, color = EmeraldPrimary)
-                        }
-                        LinearProgressIndicator(
-                            progress = { dailyProgress },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                            color = EmeraldPrimary,
-                            trackColor = Color(0xFFE7DEC8)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(33, 100, 300, 1000).forEach { goal ->
-                                FilterChip(
-                                    selected = settings.dailyTasbihGoal == goal,
-                                    onClick = { viewModel.setDailyTasbihGoal(goal) },
-                                    label = { Text("$goal") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        activePreset?.let { preset ->
                             Text(
-                                "إجمالي هذا الذكر: ${preset.totalCount} تسبيحة • يتم الحفظ تلقائياً دون إنترنت",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "$current",
+                                color = Color.White,
+                                fontSize = 56.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "اضغط للتسبيح",
+                                color = SoftGold,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                // 4. Glass Control Buttons (- | إعادة | +)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TasbihGlassButton(
+                        icon = Icons.Default.Remove,
+                        label = "إنقاص",
+                        onClick = { activePreset?.let { viewModel.decrementTasbih(it) } }
+                    )
+                    TasbihGlassButton(
+                        icon = Icons.Default.Refresh,
+                        label = "تصفير",
+                        highlighted = true,
+                        onClick = { activePreset?.let { viewModel.resetTasbih(it) } }
+                    )
+                    TasbihGlassButton(
+                        icon = Icons.Default.Add,
+                        label = "زيادة",
+                        onClick = {
+                            activePreset?.let { p ->
+                                triggerFeedback((p.currentCount + 1) % target == 0)
+                                viewModel.incrementTasbih(p)
+                            }
+                        }
+                    )
+                }
+
+                // 5. Daily Goal & Total Summary Card
+                val goalProgress = (todayTotal.toFloat() / settings.dailyTasbihGoal.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showGoalDialog = true },
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF122847).copy(alpha = 0.90f),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "مجموع اليوم: $todayTotal تسبيحة",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "الهدف اليومي: ${settings.dailyTasbihGoal} ✎",
+                                color = SoftGold,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { goalProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = SoftGold,
+                            trackColor = Color.White.copy(alpha = 0.16f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -416,35 +458,86 @@ fun TasbihScreen(
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("إضافة تسبيح مخصص") },
+            title = { Text("إضافة ذكر مخصص", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = customPhrase,
                         onValueChange = { customPhrase = it },
-                        label = { Text("نص الذكر") }
+                        label = { Text("صيغة الذكر") },
+                        singleLine = true
                     )
                     OutlinedTextField(
                         value = customTarget,
-                        onValueChange = { customTarget = it.filter(Char::isDigit) },
-                        label = { Text("العدد المستهدف") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        onValueChange = { customTarget = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("العدد المستهدف (مثلاً 33 أو 100)") },
+                        singleLine = true
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val t = customTarget.toIntOrNull() ?: 33
+                Button(onClick = {
+                    val t = customTarget.toIntOrNull()?.coerceIn(1, 10_000) ?: 33
                     if (customPhrase.isNotBlank()) {
-                        viewModel.addCustomTasbih(customPhrase, t)
+                        viewModel.addCustomTasbih(customPhrase.trim(), t)
                         customPhrase = ""
                         showAddDialog = false
                     }
-                }) { Text("حفظ") }
+                }) { Text("إضافة") }
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) { Text("إلغاء") }
             }
         )
+    }
+
+    if (showGoalDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoalDialog = false },
+            title = { Text("تعديل الهدف اليومي للتسبيح", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = goalInput,
+                    onValueChange = { goalInput = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("عدد التسبيحات اليومي") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    goalInput.toIntOrNull()?.let { viewModel.setDailyTasbihGoal(it) }
+                    showGoalDialog = false
+                }) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGoalDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun TasbihGlassButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    highlighted: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(96.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = if (highlighted) SoftGold.copy(alpha = 0.20f) else Color(0xFF152D4F).copy(alpha = 0.85f),
+        border = BorderStroke(1.dp, SoftGold.copy(alpha = if (highlighted) 0.85f else 0.38f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = label, tint = SoftGold, modifier = Modifier.size(18.dp))
+            Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

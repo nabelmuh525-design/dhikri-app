@@ -480,7 +480,61 @@ fun SettingsScreen(
                 }
             }
 
-            item { SettingSwitch("الوضع الليلي للتطبيق", settings.darkMode) { viewModel.setDarkMode(it) } }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.35f))
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("مظهر التطبيق (الوضع الليلي)", fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val options = listOf(
+                                Triple("system", "تلقائي (النظام)", Icons.Default.BrightnessAuto),
+                                Triple("light", "فاتح", Icons.Default.WbSunny),
+                                Triple("dark", "داكن", Icons.Default.DarkMode)
+                            )
+                            options.forEach { (key, label, icon) ->
+                                val selected = settings.themeMode == key
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { viewModel.setThemeMode(key) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) EmeraldDark else MaterialTheme.colorScheme.surfaceVariant,
+                                    border = BorderStroke(
+                                        if (selected) 1.5.dp else 0.8.dp,
+                                        if (selected) SoftGold else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label,
+                                            tint = if (selected) SoftGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

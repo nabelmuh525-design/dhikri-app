@@ -10,6 +10,7 @@ import android.content.Context
 import com.dhikri.islamic.data.repository.DhikriRepository
 import com.dhikri.islamic.data.update.AppUpdateInfo
 import com.dhikri.islamic.data.update.AppUpdater
+import com.dhikri.islamic.data.update.PreAdhanReminderWorker
 import com.dhikri.islamic.data.update.UpdateCheckWorker
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
@@ -243,6 +244,21 @@ class DhikriViewModel(
 
     // Settings
     fun setDarkMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setDarkMode(enabled) }
+    fun setThemeMode(mode: String) = viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    fun setPrayerCityName(context: Context, cityName: String) = viewModelScope.launch {
+        settingsRepository.setPrayerCityName(cityName)
+        if (settings.value.preAdhanReminderEnabled) {
+            PreAdhanReminderWorker.scheduleNext(context, cityName)
+        }
+    }
+    fun setPreAdhanReminderEnabled(context: Context, enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setPreAdhanReminderEnabled(enabled)
+        if (enabled) {
+            PreAdhanReminderWorker.scheduleNext(context, settings.value.prayerCityName)
+        } else {
+            PreAdhanReminderWorker.cancel(context)
+        }
+    }
     fun setNightReadingMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setNightReadingMode(enabled) }
     fun setReadingTheme(themeKey: String) = viewModelScope.launch { settingsRepository.setReadingTheme(themeKey) }
     fun setMushafFontSize(sizeSp: Float) = viewModelScope.launch { settingsRepository.setMushafFontSize(sizeSp) }
