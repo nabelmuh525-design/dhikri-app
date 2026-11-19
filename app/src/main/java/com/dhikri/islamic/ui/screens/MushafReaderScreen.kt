@@ -1,6 +1,9 @@
 package com.dhikri.islamic.ui.screens
 
 import android.content.Intent
+import android.media.MediaPlayer
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -53,11 +56,68 @@ fun MushafReaderScreen(
     var selectedAyah by remember { mutableStateOf<AyahEntity?>(null) }
     var selectedTafsirEntries by remember { mutableStateOf<List<TafsirEntryEntity>>(emptyList()) }
     var showThemePicker by remember { mutableStateOf(false) }
+    var isPlayingAyahAudio by remember { mutableStateOf(false) }
+    var audioStatusText by remember { mutableStateOf<String?>(null) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
     val palette = readingThemeByKey(settings.readingThemeKey)
+
+    DisposableEffect(context) {
+        var engine: TextToSpeech? = null
+        engine = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                engine?.language = Locale("ar")
+            }
+        }
+        tts = engine
+        onDispose {
+            runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
+            runCatching { engine?.stop(); engine?.shutdown() }
+        }
+    }
+
+    fun stopAllAudio() {
+        runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
+        mediaPlayer = null
+        isPlayingAyahAudio = false
+        audioStatusText = null
+        runCatching { tts?.stop() }
+    }
+
+    fun playAyahPronunciation(surahId: Int, ayahNumber: Int) {
+        stopAllAudio()
+        val s3 = "%03d".format(surahId)
+        val a3 = "%03d".format(ayahNumber)
+        val url = "https://everyayah.com/data/Husary_128kbps/$s3$a3.mp3"
+        audioStatusText = "جاري تشغيل النطق المجوّد (الشيخ الحصري)..."
+        val mp = MediaPlayer()
+        runCatching {
+            mp.setDataSource(url)
+            mp.setOnPreparedListener {
+                it.start()
+                isPlayingAyahAudio = true
+                audioStatusText = "يُقرأ الآن بصوت الشيخ الحصري (المعلّم)"
+            }
+            mp.setOnCompletionListener {
+                isPlayingAyahAudio = false
+                audioStatusText = null
+            }
+            mp.setOnErrorListener { _, _, _ ->
+                isPlayingAyahAudio = false
+                audioStatusText = "تحتاج اتصال إنترنت لسماع التلاوة المجوّدة للآية"
+                true
+            }
+            mp.prepareAsync()
+            mediaPlayer = mp
+        }.onFailure {
+            isPlayingAyahAudio = false
+            audioStatusText = "تعذّر تشغيل الصوت"
+        }
+    }
 
     LaunchedEffect(currentPage, ayahs) {
         ayahs.firstOrNull()?.let { first ->
@@ -296,7 +356,7 @@ fun MushafReaderScreen(
     selectedAyah?.let { ayah ->
         val surahName = surahs.firstOrNull { it.id == ayah.surahId }?.nameArabic ?: "${ayah.surahId}"
         val isFav = favoriteAyahs.any { it.ayahId == ayah.id }
-        ModalBottomSheet(onDismissRequest = { selectedAyah = null }) {
+        ModalBottomSheet(onDismissRequest = { stopAllAudio(); selectedAyah = null }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -315,6 +375,19 @@ fun MushafReaderScreen(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    AssistChip(
+                        onClick = {
+                            if (isPlayingAyahAudio) stopAllAudio()
+                            else playAyahPronunciation(ayah.surahId, ayah.ayahNumber)
+                        },
+                        label = { Text(if (isPlayingAyahAudio) "إيقاف النطق" else "اسمع النطق") },
+                        leadingIcon = {
+                            Icon(
+                                if (isPlayingAyahAudio) Icons.Default.StopCircle else Icons.Default.VolumeUp,
+                                contentDescription = null
+                            )
+                        }
+                    )
                     AssistChip(
                         onClick = {
                             viewModel.addBookmark(ayah.surahId, ayah.ayahNumber, ayah.pageNumber, "سورة $surahName : ${ayah.ayahNumber}")
@@ -349,6 +422,9 @@ fun MushafReaderScreen(
                 }
 
                 HorizontalDivider()
+                audioStatusText?.let { status ->
+                    Text(status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
                 Text("التفسير ومعاني الكلمات", style = MaterialTheme.typography.titleMedium)
 
                 if (selectedTafsirEntries.isEmpty()) {
@@ -393,6 +469,17 @@ fun MushafReaderScreen(
                                         )
                                     } else {
                                         Text(entry.textContent, style = MaterialTheme.typography.bodyLarge)
+                                        if (entry.bookKey == "arabic_seraj") {
+                                            TextButton(
+                                                onClick = {
+                                                    tts?.speak(entry.textContent, TextToSpeech.QUEUE_FLUSH, null, "word_meaning")
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("استماع لشرح الكلمات الصعبة (أوفلاين)")
+                                            }
+                                        }
                                     }
                                     entry.footnotes?.takeIf { it.isNotBlank() }?.let { notes ->
                                         Text(

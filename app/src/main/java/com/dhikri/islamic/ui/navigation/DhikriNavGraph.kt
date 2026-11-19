@@ -1,20 +1,27 @@
 package com.dhikri.islamic.ui.navigation
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -33,14 +40,14 @@ sealed class BottomTab(val route: String, val label: String, val icon: ImageVect
     data object Quran : BottomTab("quran", "القرآن", Icons.Default.MenuBook)
     data object Adhkar : BottomTab("adhkar", "الأذكار", Icons.Default.VolunteerActivism)
     data object Stories : BottomTab("stories", "الحكايات", Icons.Default.AutoStories)
-    data object More : BottomTab("more", "المزيد", Icons.Default.MoreHoriz)
 }
 
 object Routes {
     const val MUSHAF_PAGE = "mushaf/{page}"
     const val QURAN_SEARCH = "quran_search"
-    const val ADHKAR_DETAIL = "adhkar_detail/{categoryId}"
+    const val ADHKAR_DETAIL = "adhkar_detail/{categoryId}/{mode}"
     const val STORY_DETAIL = "story_detail/{storyId}"
+    const val MORE = "more"
     const val TASBIH = "tasbih"
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
@@ -54,14 +61,14 @@ object Routes {
     const val HIJRI = "hijri"
 
     fun mushafPage(page: Int) = "mushaf/${page.coerceIn(1, 604)}"
-    fun adhkarDetail(categoryId: Int) = "adhkar_detail/$categoryId"
+    fun adhkarDetail(categoryId: Int, mode: String = "all") = "adhkar_detail/$categoryId/$mode"
     fun storyDetail(storyId: Int) = "story_detail/$storyId"
 }
 
 @Composable
 fun DhikriAppShell(viewModel: DhikriViewModel) {
     val navController = rememberNavController()
-    val tabs = listOf(BottomTab.Home, BottomTab.Quran, BottomTab.Adhkar, BottomTab.Stories, BottomTab.More)
+    val tabs = listOf(BottomTab.Home, BottomTab.Quran, BottomTab.Adhkar, BottomTab.Stories)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -90,34 +97,16 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                Column {
-                    HorizontalDivider(thickness = 1.5.dp, color = SoftGold.copy(alpha = 0.7f))
-                    NavigationBar(
-                        containerColor = EmeraldDark,
-                        contentColor = Color.White
-                    ) {
-                        tabs.forEach { tab ->
-                            val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    if (tab == BottomTab.Home || !selected) {
-                                        navigateToTab(tab)
-                                    }
-                                },
-                                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                label = { Text(tab.label, maxLines = 1) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = SoftGold,
-                                    selectedTextColor = SoftGold,
-                                    indicatorColor = Color(0xFF165240),
-                                    unselectedIconColor = Color.White.copy(alpha = 0.8f),
-                                    unselectedTextColor = Color.White.copy(alpha = 0.8f)
-                                )
-                            )
+                DhikriElegantBottomBar(
+                    tabs = tabs,
+                    currentRoute = currentDestination?.route,
+                    onSelect = { tab ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                        if (tab == BottomTab.Home || !selected) {
+                            navigateToTab(tab)
                         }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -132,11 +121,12 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     onContinueReading = { page -> navController.navigate(Routes.mushafPage(page)) },
                     onOpenQuran = { navigateToTab(BottomTab.Quran) },
                     onOpenAdhkarTab = { navigateToTab(BottomTab.Adhkar) },
-                    onOpenAdhkarCategory = { id -> navController.navigate(Routes.adhkarDetail(id)) },
+                    onOpenAdhkarCategory = { id -> navController.navigate(Routes.adhkarDetail(id, "morning")) },
                     onOpenTasbih = { navController.navigate(Routes.TASBIH) },
                     onOpenStories = { navigateToTab(BottomTab.Stories) },
                     onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
-                    onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                    onOpenMore = { navController.navigate(Routes.MORE) },
+                    onOpenHijri = { navController.navigate(Routes.HIJRI) }
                 )
             }
             composable(BottomTab.Quran.route) {
@@ -168,16 +158,21 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
             composable(BottomTab.Adhkar.route) {
                 AdhkarListScreen(
                     viewModel = viewModel,
-                    onOpenCategory = { id -> navController.navigate(Routes.adhkarDetail(id)) }
+                    onOpenCategory = { id, mode -> navController.navigate(Routes.adhkarDetail(id, mode)) }
                 )
             }
             composable(
                 route = Routes.ADHKAR_DETAIL,
-                arguments = listOf(navArgument("categoryId") { type = NavType.IntType })
+                arguments = listOf(
+                    navArgument("categoryId") { type = NavType.IntType },
+                    navArgument("mode") { type = NavType.StringType }
+                )
             ) { entry ->
                 val catId = entry.arguments?.getInt("categoryId") ?: 27
+                val mode = entry.arguments?.getString("mode") ?: "all"
                 AdhkarDetailScreen(
                     categoryId = catId,
+                    mode = mode,
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }
                 )
@@ -199,7 +194,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     onBack = { navController.popBackStack() }
                 )
             }
-            composable(BottomTab.More.route) {
+            composable(Routes.MORE) {
                 MoreScreen(
                     onOpenKhatmah = { navController.navigate(Routes.KHATMAH) },
                     onOpenRecitations = { navController.navigate(Routes.RECITATIONS) },
@@ -208,11 +203,11 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     onOpenTasbih = { navController.navigate(Routes.TASBIH) },
                     onOpenHisnAlMuslim = { navigateToTab(BottomTab.Adhkar) },
                     onOpenQibla = { navController.navigate(Routes.QIBLA) },
-                    onOpenHijri = { navController.navigate(Routes.HIJRI) },
                     onOpenDownloads = { navController.navigate(Routes.DOWNLOADS) },
                     onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                    onOpenSources = { navController.navigate(Routes.SOURCES) }
+                    onOpenSources = { navController.navigate(Routes.SOURCES) },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Routes.KHATMAH) {
@@ -261,6 +256,96 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
             }
             composable(Routes.SOURCES) {
                 SourcesAndLicensesScreen(onBack = { navController.popBackStack() })
+            }
+        }
+    }
+}
+
+@Composable
+private fun DhikriElegantBottomBar(
+    tabs: List<BottomTab>,
+    currentRoute: String?,
+    onSelect: (BottomTab) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(14.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)),
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF163A69), EmeraldDark)
+                    )
+                )
+                .navigationBarsPadding()
+        ) {
+            // Subtle golden crown border at top of bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                SoftGold.copy(alpha = 0.25f),
+                                SoftGold,
+                                SoftGold.copy(alpha = 0.25f)
+                            )
+                        )
+                    )
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    val selected = currentRoute == tab.route
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onSelect(tab) }
+                            .padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.label,
+                            tint = if (selected) SoftGold else Color.White.copy(alpha = 0.78f),
+                            modifier = Modifier.size(if (selected) 26.dp else 23.dp)
+                        )
+                        Text(
+                            text = tab.label,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) SoftGold else Color.White.copy(alpha = 0.80f),
+                            maxLines = 1
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(if (selected) 28.dp else 0.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(SoftGold)
+                        )
+                    }
+                    if (index < tabs.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(26.dp)
+                                .background(Color.White.copy(alpha = 0.16f))
+                        )
+                    }
+                }
             }
         }
     }

@@ -12,7 +12,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import android.icu.text.DateFormat
+import android.icu.util.Calendar
+import android.icu.util.ULocale
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -44,14 +51,26 @@ fun HomeScreen(
     onOpenTasbih: () -> Unit,
     onOpenStories: () -> Unit,
     onOpenFavorites: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenMore: () -> Unit,
+    onOpenHijri: () -> Unit
 ) {
     val lastRead by viewModel.lastRead.collectAsState()
     val surahs by viewModel.surahs.collectAsState()
     val todayTasbih by viewModel.todayTasbihTotal.collectAsState()
+    val settings by viewModel.settings.collectAsState()
 
     val lastSurahName = surahs.firstOrNull { it.id == (lastRead?.surahId ?: 1) }?.nameArabic ?: "الفاتحة"
     val lastPage = lastRead?.pageNumber ?: 1
+    val lastAyah = lastRead?.ayahNumber ?: 1
+    val datePillText = remember {
+        val hijri = runCatching {
+            val uLocale = ULocale("ar@calendar=islamic-umalqura")
+            val cal = Calendar.getInstance(uLocale)
+            DateFormat.getDateInstance(DateFormat.MEDIUM, uLocale).format(cal)
+        }.getOrElse { "" }
+        val greg = SimpleDateFormat("d MMMM yyyy", Locale("ar")).format(Date())
+        if (hijri.isNotBlank()) "$hijri  •  $greg" else greg
+    }
 
     Column(
         modifier = Modifier
@@ -82,7 +101,7 @@ fun HomeScreen(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0x280D3B2E),
+                                Color(0x300B1F3B),
                                 Color(0x14FFF8E7),
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.85f)
                             )
@@ -90,39 +109,69 @@ fun HomeScreen(
                     )
             )
 
-            // Top action icons: Settings (start/right in RTL) & Bell (end/left in RTL)
+            // Top bar: 3-lines Menu (Right/Start) | Clickable Hijri+Greg Date (Center) | Sun/Moon Theme Toggle (Left/End)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onOpenSettings,
+                    onClick = onOpenMore,
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(EmeraldDark.copy(alpha = 0.82f))
+                        .background(EmeraldDark.copy(alpha = 0.85f))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "الإعدادات",
-                        tint = Color.White
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "القائمة والمزيد",
+                        tint = SoftGold
                     )
                 }
 
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xECFFF8E8),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.8f)),
+                    modifier = Modifier
+                        .padding(horizontal = 6.dp)
+                        .clickable { onOpenHijri() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "التقويم الهجري والمناسبات",
+                            tint = EmeraldDark,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = datePillText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = EmeraldDark,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
                 IconButton(
-                    onClick = onOpenSettings,
+                    onClick = { viewModel.setDarkMode(!settings.darkMode) },
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(EmeraldDark.copy(alpha = 0.55f))
+                        .background(EmeraldDark.copy(alpha = 0.85f))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "التنبيهات",
-                        tint = Color.White
+                        imageVector = if (settings.darkMode) Icons.Default.DarkMode else Icons.Default.WbSunny,
+                        contentDescription = if (settings.darkMode) "الوضع الداكن" else "الوضع الفاتح",
+                        tint = SoftGold
                     )
                 }
             }
@@ -201,7 +250,74 @@ fun HomeScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // Dedicated Prominent Continue Reading Card (منفصلة وواضحة)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .shadow(4.dp, RoundedCornerShape(18.dp))
+                .clickable { onContinueReading(lastPage) },
+            shape = RoundedCornerShape(18.dp),
+            color = EmeraldDark,
+            border = BorderStroke(1.2.dp, SoftGold)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(SoftGold.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = null,
+                            tint = SoftGold,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "متابعة القراءة",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = SoftGold
+                        )
+                        Text(
+                            text = "سورة $lastSurahName • صفحة $lastPage (آية $lastAyah)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.92f)
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SoftGold
+                ) {
+                    Text(
+                        text = "أكمل",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F1604),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
 
         // 2. 2x3 Colorful Gradient Feature Grid (matching exact reference layout)
         Column(

@@ -5,6 +5,7 @@ import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.SoundEffectConstants
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,8 +66,9 @@ fun TasbihScreen(
     var customTarget by remember { mutableStateOf("33") }
 
     val context = LocalContext.current
+    val view = LocalView.current
     val toneGenerator = remember {
-        runCatching { ToneGenerator(AudioManager.STREAM_SYSTEM, 45) }.getOrNull()
+        runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 85) }.getOrNull()
     }
     DisposableEffect(Unit) {
         onDispose { toneGenerator?.release() }
@@ -83,7 +86,8 @@ fun TasbihScreen(
             }
         }
         if (settings.soundEnabled) {
-            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 35)
+            runCatching { toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 45) }
+            runCatching { view.playSoundEffect(SoundEffectConstants.CLICK) }
         }
     }
 

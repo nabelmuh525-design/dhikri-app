@@ -10,6 +10,20 @@ import android.icu.text.DateFormat
 import android.icu.util.Calendar
 import android.icu.util.ULocale
 import android.media.MediaPlayer
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.dhikri.islamic.R
+import com.dhikri.islamic.ui.theme.EmeraldDark
+import org.json.JSONObject
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -287,7 +301,6 @@ fun QiblaScreen(onBack: () -> Unit) {
     var azimuthDeg by remember { mutableFloatStateOf(0f) }
     var hasSensor by remember { mutableStateOf(true) }
 
-    // Great-circle bearing from selected city to Kaaba (21.4225, 39.8262)
     val qiblaBearing = remember(selectedCity) {
         val lat1 = Math.toRadians(selectedCity.lat)
         val lon1 = Math.toRadians(selectedCity.lon)
@@ -322,70 +335,191 @@ fun QiblaScreen(onBack: () -> Unit) {
     }
 
     val needleRotation = (qiblaBearing - azimuthDeg + 360f) % 360f
+    val isAligned = needleRotation <= 6f || needleRotation >= 354f
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("اتجاه القبلة") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(IslamicToolsData.qiblaCities) { city ->
-                    FilterChip(
-                        selected = city == selectedCity,
-                        onClick = { selectedCity = city },
-                        label = { Text(city.nameArabic) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = R.drawable.home_header_bg),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xDCFAF5E8), Color(0xF0FAF5E8), Color(0xF8F3EBD8))
                     )
-                }
-            }
+                )
+        )
 
-            Text(
-                "زاوية القبلة من ${selectedCity.nameArabic}: ${qiblaBearing.toInt()}° من الشمال",
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
-            )
-
-            Box(
-                modifier = Modifier.size(250.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val center = Offset(size.width / 2f, size.height / 2f)
-                    val radius = size.minDimension / 2.2f
-                    drawCircle(color = EmeraldPrimary.copy(alpha = 0.14f), radius = radius, center = center)
-                    drawCircle(color = SoftGold, radius = radius, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f))
-                    rotate(degrees = needleRotation, pivot = center) {
-                        drawLine(
-                            color = EmeraldPrimary,
-                            start = center,
-                            end = Offset(center.x, center.y - radius * 0.82f),
-                            strokeWidth = 14f,
-                            cap = StrokeCap.Round
-                        )
-                        drawCircle(color = SoftGold, radius = 14f, center = Offset(center.x, center.y - radius * 0.85f))
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    title = { Text("اتجاه القبلة", fontWeight = FontWeight.Bold, color = EmeraldDark) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = EmeraldDark)
+                        }
                     }
-                    drawCircle(color = EmeraldPrimary, radius = 12f, center = center)
-                }
+                )
             }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // City Selector
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(IslamicToolsData.qiblaCities) { city ->
+                        FilterChip(
+                            selected = city == selectedCity,
+                            onClick = { selectedCity = city },
+                            label = { Text(city.nameArabic) }
+                        )
+                    }
+                }
 
-            Text(
-                if (hasSensor) "وجّه الهاتف أفقياً وحرّكه حتى يشير السهم الذهبي إلى الأعلى تماماً (اتجاه الكعبة المشرفة)."
-                else "جهازك لا يدعم حساس البوصلة، يمكنك الاعتماد على زاوية القبلة الموضّحة أعلاه.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+                // Emerald-Gold Alignment Status Banner
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isAligned) EmeraldDark else Color(0xFFFFFBF0),
+                    border = BorderStroke(1.5.dp, SoftGold),
+                    shadowElevation = 4.dp
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = if (isAligned) "أنت متجه نحو الكعبة المشرفة تماماً ✓"
+                            else "زاوية القبلة من ${selectedCity.nameArabic}: ${qiblaBearing.toInt()}°",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isAligned) SoftGold else EmeraldDark,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "مكة المكرمة — 21.4225° N, 39.8262° E",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isAligned) Color.White.copy(alpha = 0.85f) else Color(0xFF6B5833)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // Ornate Golden-Rimmed Compass Dial with Kaaba Image on Pointer Tip
+                Box(
+                    modifier = Modifier
+                        .size(290.dp)
+                        .shadow(12.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(Color(0xFFFFFDF7), Color(0xFFF3E9D2), Color(0xFFE3D2AC))
+                            )
+                        )
+                        .border(5.dp, SoftGold, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Cardinal Labels
+                    Text("ش", fontWeight = FontWeight.Bold, color = EmeraldDark, modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
+                    Text("ج", fontWeight = FontWeight.Bold, color = Color(0xFF6B5833), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp))
+                    Text("ق", fontWeight = FontWeight.Bold, color = Color(0xFF6B5833), modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp))
+                    Text("غ", fontWeight = FontWeight.Bold, color = Color(0xFF6B5833), modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp))
+
+                    // Compass Tick Marks & Inner Decorative Ring
+                    Canvas(modifier = Modifier.fillMaxSize().padding(18.dp)) {
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        val r = size.minDimension / 2f
+                        drawCircle(
+                            color = EmeraldPrimary.copy(alpha = 0.12f),
+                            radius = r * 0.78f,
+                            center = center
+                        )
+                        drawCircle(
+                            color = SoftGold.copy(alpha = 0.65f),
+                            radius = r * 0.78f,
+                            center = center,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
+                        )
+                        for (deg in 0 until 360 step 10) {
+                            val rad = Math.toRadians(deg.toDouble())
+                            val len = if (deg % 30 == 0) 14f else 7f
+                            val start = Offset(
+                                center.x + (r * 0.96f * sin(rad)).toFloat(),
+                                center.y - (r * 0.96f * cos(rad)).toFloat()
+                            )
+                            val end = Offset(
+                                center.x + ((r * 0.96f - len) * sin(rad)).toFloat(),
+                                center.y - ((r * 0.96f - len) * cos(rad)).toFloat()
+                            )
+                            drawLine(
+                                color = if (deg % 90 == 0) EmeraldDark else SoftGold.copy(alpha = 0.7f),
+                                start = start,
+                                end = end,
+                                strokeWidth = if (deg % 30 == 0) 3.5f else 2f
+                            )
+                        }
+                    }
+
+                    // Rotating Qibla Pointer + Kaaba Image Directly on the Arrow Tip!
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { rotationZ = needleRotation },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val cx = size.width / 2f
+                            val cy = size.height / 2f
+                            val tipY = cy - size.minDimension * 0.30f
+                            val tailY = cy + size.minDimension * 0.18f
+                            drawLine(
+                                color = if (isAligned) SoftGold else EmeraldDark,
+                                start = Offset(cx, tailY),
+                                end = Offset(cx, tipY),
+                                strokeWidth = 12f,
+                                cap = StrokeCap.Round
+                            )
+                            drawCircle(color = SoftGold, radius = 14f, center = Offset(cx, cy))
+                            drawCircle(color = EmeraldDark, radius = 7f, center = Offset(cx, cy))
+                        }
+
+                        // Holy Kaaba Medallion positioned right at the tip of the arrow
+                        Image(
+                            painter = painterResource(id = R.drawable.kaaba_icon),
+                            contentDescription = "الكعبة المشرفة",
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 28.dp)
+                                .size(58.dp)
+                                .shadow(6.dp, CircleShape)
+                                .clip(CircleShape)
+                                .border(2.dp, SoftGold, CircleShape)
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (hasSensor) "ضع الهاتف بشكل أفقي بعيداً عن المعادن، وحرّكه حتى تصبح الكعبة المشرفة في أعلى البوصلة."
+                    else "جهازك لا يحتوي على حساس بوصلة، يمكنك الاعتماد على زاوية القبلة الموضّحة أعلاه.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = EmeraldDark.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
         }
     }
 }
@@ -421,7 +555,7 @@ fun HijriCalendarScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("التقويم الهجري") },
+                title = { Text("التقويم والمناسبات الإسلامية") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
@@ -448,7 +582,54 @@ fun HijriCalendarScreen(onBack: () -> Unit) {
                     }
                 }
             }
-            item { Text("الأشهر الهجرية", style = MaterialTheme.typography.titleMedium) }
+            item {
+                Text(
+                    "المناسبات والأيام الدينية الإسلامية",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            items(
+                listOf(
+                    "1 محرّم" to "رأس السنة الهجرية",
+                    "10 محرّم" to "يوم عاشوراء (يُستحب صيامه)",
+                    "12 ربيع الأول" to "ذكرى المولد النبوي الشريف",
+                    "1 رمضان" to "غرة شهر رمضان المبارك",
+                    "21 – 29 رمضان" to "العشر الأواخر وليلة القدر",
+                    "1 شوّال" to "عيد الفطر المبارك",
+                    "1 – 9 ذو الحجة" to "العشر الأوائل من ذي الحجة",
+                    "9 ذو الحجة" to "يوم عرفة (صيامه يكفّر سنتين)",
+                    "10 ذو الحجة" to "عيد الأضحى المبارك وأيام التشريق"
+                )
+            ) { (hijriDate, occasion) ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.45f))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(occasion, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                hijriDate,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(4.dp)); Text("الأشهر الهجرية (12 شهراً)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
             items(months) { m ->
                 Card(shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                     Text(m, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge)
@@ -457,6 +638,13 @@ fun HijriCalendarScreen(onBack: () -> Unit) {
         }
     }
 }
+
+private data class ReciterInfo(
+    val key: String,
+    val nameArabic: String,
+    val mp3QuranSearchHint: String,
+    val fallbackBaseUrl: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -468,18 +656,54 @@ fun AudioRecitationsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val reciters = listOf(
-        "Alafasy_128kbps" to "مشاري راشد العفاسي",
-        "Husary_128kbps" to "محمود خليل الحصري",
-        "Minshawy_Murattal_128kbps" to "محمد صديق المنشاوي"
-    )
+    val reciters = remember {
+        listOf(
+            ReciterInfo("ayyub", "محمد أيوب", "محمد أيوب", "https://server8.mp3quran.net/ayyub/"),
+            ReciterInfo("ajm", "أحمد بن علي العجمي", "العجمي", "https://server10.mp3quran.net/ajm/"),
+            ReciterInfo("basit", "عبد الباسط عبد الصمد", "عبد الباسط", "https://server7.mp3quran.net/basit/"),
+            ReciterInfo("husr", "محمود خليل الحصري", "الحصري", "https://server13.mp3quran.net/husr/"),
+            ReciterInfo("minsh", "محمد صديق المنشاوي", "المنشاوي", "https://server10.mp3quran.net/minsh/")
+        )
+    }
+
     var selectedReciter by remember { mutableStateOf(reciters.first()) }
+    val resolvedServers = remember { mutableStateMapOf<String, String>() }
     var playingSurahId by remember { mutableStateOf<Int?>(null) }
     var downloadingSurahId by remember { mutableStateOf<Int?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     val cacheDir = remember { File(context.filesDir, "recitations").apply { mkdirs() } }
+
+    // Fetch live verified MP3Quran API v3 server URLs once when online
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val conn = (URL("https://www.mp3quran.net/api/v3/reciters?language=ar").openConnection() as HttpsURLConnection).apply {
+                    connectTimeout = 10_000
+                    readTimeout = 12_000
+                }
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    val arr = JSONObject(body).getJSONArray("reciters")
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val name = obj.optString("name")
+                        val moshafArr = obj.optJSONArray("moshaf") ?: continue
+                        if (moshafArr.length() == 0) continue
+                        val server = moshafArr.getJSONObject(0).optString("server")
+                        if (!server.startsWith("https://")) continue
+                        reciters.forEach { rec ->
+                            if (name.contains(rec.mp3QuranSearchHint) && !resolvedServers.containsKey(rec.key)) {
+                                resolvedServers[rec.key] = if (server.endsWith("/")) server else "$server/"
+                            }
+                        }
+                    }
+                }
+                conn.disconnect()
+            }
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -490,27 +714,27 @@ fun AudioRecitationsScreen(
     fun localFile(reciterKey: String, surahId: Int): File =
         File(cacheDir, "${reciterKey}_${"%03d".format(surahId)}.mp3")
 
+    fun surahUrl(reciter: ReciterInfo, surahId: Int): String {
+        val base = resolvedServers[reciter.key] ?: reciter.fallbackBaseUrl
+        return "${base}${"%03d".format(surahId)}.mp3"
+    }
+
     fun playSurah(surahId: Int) {
         runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
-        val file = localFile(selectedReciter.first, surahId)
+        val file = localFile(selectedReciter.key, surahId)
         val urlOrPath = if (file.exists() && file.length() > 1000) {
             file.absolutePath
         } else {
-            val code = "%03d".format(surahId)
-            when (selectedReciter.first) {
-                "Alafasy_128kbps" -> "https://server8.mp3quran.net/afs/$code.mp3"
-                "Husary_128kbps" -> "https://server13.mp3quran.net/husr/$code.mp3"
-                else -> "https://server10.mp3quran.net/minsh/$code.mp3"
-            }
+            surahUrl(selectedReciter, surahId)
         }
-        statusMessage = if (file.exists()) "جاري التشغيل أوفلاين..." else "جاري التشغيل عبر الإنترنت..."
+        statusMessage = if (file.exists()) "جاري التشغيل أوفلاين..." else "جاري التشغيل بصوت ${selectedReciter.nameArabic}..."
         val mp = MediaPlayer()
         runCatching {
             mp.setDataSource(urlOrPath)
             mp.setOnPreparedListener {
                 it.start()
                 playingSurahId = surahId
-                statusMessage = "قيد التشغيل الآن"
+                statusMessage = "قيد التشغيل الآن — ${selectedReciter.nameArabic}"
             }
             mp.setOnCompletionListener { playingSurahId = null; statusMessage = null }
             mp.setOnErrorListener { _, _, _ ->
@@ -554,11 +778,11 @@ fun AudioRecitationsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(reciters) { r ->
+                items(reciters, key = { it.key }) { r ->
                     FilterChip(
                         selected = r == selectedReciter,
                         onClick = { selectedReciter = r },
-                        label = { Text(r.second) }
+                        label = { Text(r.nameArabic) }
                     )
                 }
             }
@@ -575,7 +799,7 @@ fun AudioRecitationsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(surahs, key = { it.id }) { surah ->
-                    val file = localFile(selectedReciter.first, surah.id)
+                    val file = localFile(selectedReciter.key, surah.id)
                     val isDownloaded = file.exists() && file.length() > 1000
                     val isPlaying = playingSurahId == surah.id
                     Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -624,12 +848,7 @@ fun AudioRecitationsScreen(
                                             scope.launch {
                                                 val ok = withContext(Dispatchers.IO) {
                                                     runCatching {
-                                                        val code = "%03d".format(surah.id)
-                                                        val urlStr = when (selectedReciter.first) {
-                                                            "Alafasy_128kbps" -> "https://server8.mp3quran.net/afs/$code.mp3"
-                                                            "Husary_128kbps" -> "https://server13.mp3quran.net/husr/$code.mp3"
-                                                            else -> "https://server10.mp3quran.net/minsh/$code.mp3"
-                                                        }
+                                                        val urlStr = surahUrl(selectedReciter, surah.id)
                                                         val conn = (URL(urlStr).openConnection() as HttpsURLConnection).apply {
                                                             connectTimeout = 15_000
                                                             readTimeout = 30_000

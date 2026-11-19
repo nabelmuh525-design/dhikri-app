@@ -144,7 +144,7 @@ class DhikriViewModel(
     }
 
     fun startPackageDownload(bookKey: String) = repository.enqueueTafsirDownload(bookKey)
-    fun pauseOrCancelDownload(bookKey: String) = repository.cancelDownload(bookKey)
+    fun pauseOrCancelDownload(bookKey: String) = viewModelScope.launch { repository.pauseDownload(bookKey) }
     fun deleteOptionalPackage(packageKey: String) {
         viewModelScope.launch { repository.deleteOptionalPackage(packageKey) }
     }

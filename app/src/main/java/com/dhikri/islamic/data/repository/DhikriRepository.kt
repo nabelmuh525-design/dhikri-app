@@ -172,8 +172,10 @@ class DhikriRepository(
             .enqueueUniqueWork("download_$bookKey", ExistingWorkPolicy.REPLACE, request)
     }
 
-    fun cancelDownload(bookKey: String) {
+    suspend fun pauseDownload(bookKey: String) {
         WorkManager.getInstance(context).cancelUniqueWork("download_$bookKey")
+        val done = db.tafsirDao().getMaxDownloadedSurah(bookKey)
+        db.downloadPackageDao().updateProgress(bookKey, "PAUSED", (done * 100) / 114, "")
     }
 
     suspend fun deleteOptionalPackage(packageKey: String) {

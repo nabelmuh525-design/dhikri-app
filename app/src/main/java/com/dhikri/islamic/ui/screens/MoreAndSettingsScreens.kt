@@ -40,15 +40,26 @@ fun MoreScreen(
     onOpenTasbih: () -> Unit,
     onOpenHisnAlMuslim: () -> Unit,
     onOpenQibla: () -> Unit,
-    onOpenHijri: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenSources: () -> Unit
+    onOpenSources: () -> Unit,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
 
-    Scaffold(topBar = { TopAppBar(title = { Text("المزيد") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("القائمة والمزيد", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
+                    }
+                }
+            )
+        }
+    ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
@@ -66,7 +77,6 @@ fun MoreScreen(
             // Group 2: الأدوات الإسلامية
             item { Spacer(Modifier.height(4.dp)); GroupHeader("الأدوات الإسلامية") }
             item { MoreRow("اتجاه القبلة", "بوصلة القبلة وحساب الزاوية دون إنترنت", Icons.Default.Explore, onOpenQibla) }
-            item { MoreRow("التقويم الهجري", "تاريخ أم القرى اليومي والأشهر الهجرية", Icons.Default.CalendarMonth, onOpenHijri) }
 
             // Group 3: التخصيص
             item { Spacer(Modifier.height(4.dp)); GroupHeader("التخصيص وإدارة المحتوى") }
@@ -199,7 +209,7 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
                         if (pkg.sha256Checksum.isNotBlank() && pkg.sha256Checksum != "CORE_BUNDLED") {
                             Text("التحقق SHA-256: ${pkg.sha256Checksum.take(18)}...", style = MaterialTheme.typography.labelMedium)
                         }
-                        if (pkg.status == "DOWNLOADING") {
+                        if (pkg.status == "DOWNLOADING" || pkg.status == "PAUSED") {
                             LinearProgressIndicator(
                                 progress = { pkg.progressPercent / 100f },
                                 modifier = Modifier.fillMaxWidth()
@@ -213,11 +223,22 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
                                     "INSTALLED" -> OutlinedButton(onClick = { viewModel.deleteOptionalPackage(pkg.packageKey) }) {
                                         Text("حذف الحزمة")
                                     }
-                                    "DOWNLOADING" -> OutlinedButton(onClick = { viewModel.pauseOrCancelDownload(pkg.packageKey) }) {
-                                        Text("إيقاف مؤقت")
+                                    "DOWNLOADING", "PAUSED", "FAILED" -> {
+                                        OutlinedButton(
+                                            onClick = { viewModel.pauseOrCancelDownload(pkg.packageKey) },
+                                            enabled = pkg.status == "DOWNLOADING"
+                                        ) {
+                                            Text("إيقاف مؤقت")
+                                        }
+                                        Button(
+                                            onClick = { viewModel.startPackageDownload(pkg.packageKey) },
+                                            enabled = pkg.status != "DOWNLOADING"
+                                        ) {
+                                            Text("إكمال التحميل")
+                                        }
                                     }
                                     else -> Button(onClick = { viewModel.startPackageDownload(pkg.packageKey) }) {
-                                        Text(if (pkg.status == "FAILED") "إعادة المحاولة" else "تنزيل أوفلاين")
+                                        Text("تنزيل أوفلاين")
                                     }
                                 }
                             }
@@ -283,7 +304,8 @@ fun SettingsScreen(
     viewModel: DhikriViewModel,
     onBack: () -> Unit,
     onOpenDownloads: () -> Unit,
-    onOpenSources: () -> Unit
+    onOpenSources: () -> Unit,
+    onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
 
@@ -355,7 +377,7 @@ fun SettingsScreen(
             item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
             item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
             item { MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads) }
-            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.0.0", Icons.Default.Info, onOpenSources) }
+            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.8.0", Icons.Default.Info, onOpenSources) }
         }
     }
 }

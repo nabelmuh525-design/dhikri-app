@@ -14,17 +14,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.R
 
-val EmeraldPrimary = Color(0xFF0B5D46)
-val EmeraldDark = Color(0xFF0D3B2E)
-val EmeraldLight = Color(0xFF2E8B6E)
+val EmeraldPrimary = Color(0xFF14345E)
+val EmeraldDark = Color(0xFF0B1F3B)
+val EmeraldLight = Color(0xFF2B5A94)
 val SoftGold = Color(0xFFD4AF37)
 val SoftGoldContainer = Color(0xFFF6EBD1)
 val IvoryBackground = Color(0xFFF8F4EC)
 val IvorySurface = Color(0xFFFFFDF8)
 val IvorySurfaceVariant = Color(0xFFF0EADF)
-val DeepNightBackground = Color(0xFF0D1412)
-val DeepNightSurface = Color(0xFF141F1C)
-val DeepNightCard = Color(0xFF1B2A26)
+val DeepNightBackground = Color(0xFF08111F)
+val DeepNightSurface = Color(0xFF0F1C30)
+val DeepNightCard = Color(0xFF172842)
 
 val HafsFontFamily = FontFamily(
     Font(R.font.hafs_20, FontWeight.Normal)
@@ -100,7 +100,7 @@ fun readingThemeByKey(key: String): ReadingThemePalette =
 private val LightColors = lightColorScheme(
     primary = EmeraldPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD4EFE5),
+    primaryContainer = Color(0xFFDCE7F5),
     onPrimaryContainer = EmeraldDark,
     secondary = SoftGold,
     onSecondary = Color(0xFF2B2108),
@@ -116,10 +116,10 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF5CC4A1),
-    onPrimary = Color(0xFF003828),
+    primary = Color(0xFF8AB8EB),
+    onPrimary = Color(0xFF081C36),
     primaryContainer = EmeraldPrimary,
-    onPrimaryContainer = Color(0xFFD4EFE5),
+    onPrimaryContainer = Color(0xFFDCE7F5),
     secondary = Color(0xFFE0C06D),
     onSecondary = Color(0xFF332707),
     secondaryContainer = Color(0xFF4A3A12),
@@ -129,8 +129,8 @@ private val DarkColors = darkColorScheme(
     surface = DeepNightSurface,
     onSurface = Color(0xFFEAECE8),
     surfaceVariant = DeepNightCard,
-    onSurfaceVariant = Color(0xFFB5C4BE),
-    outline = Color(0xFF2D403A)
+    onSurfaceVariant = Color(0xFFB3C2D6),
+    outline = Color(0xFF263B59)
 )
 
 private val DhikriTypography = Typography(

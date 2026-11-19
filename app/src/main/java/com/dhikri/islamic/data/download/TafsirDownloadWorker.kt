@@ -29,15 +29,25 @@ class TafsirDownloadWorker(
         val tafsirDao = db.tafsirDao()
 
         try {
-            pkgDao.updateProgress(bookKey, "DOWNLOADING", 1, "")
-            val digest = MessageDigest.getInstance("SHA-256")
-            tafsirDao.deleteEntriesForBook(bookKey)
+            val existingMaxSurah = tafsirDao.getMaxDownloadedSurah(bookKey)
+            val startSurah = if (existingMaxSurah in 1..113) existingMaxSurah + 1 else {
+                if (existingMaxSurah >= 114) {
+                    val count = tafsirDao.countEntriesForBook(bookKey)
+                    tafsirDao.updateBookStatus(bookKey, 1, count, "QuranEnc-Live")
+                    pkgDao.updateProgress(bookKey, "INSTALLED", 100, "VERIFIED")
+                    return@withContext Result.success()
+                }
+                tafsirDao.deleteEntriesForBook(bookKey)
+                1
+            }
 
-            var totalInserted = 0
-            for (sura in 1..114) {
+            pkgDao.updateProgress(bookKey, "DOWNLOADING", ((startSurah - 1) * 100) / 114, "")
+            val digest = MessageDigest.getInstance("SHA-256")
+
+            for (sura in startSurah..114) {
                 if (isStopped) {
-                    pkgDao.updateProgress(bookKey, "PAUSED", (sura * 100) / 114, "")
-                    return@withContext Result.retry()
+                    pkgDao.updateProgress(bookKey, "PAUSED", ((sura - 1) * 100) / 114, "")
+                    return@withContext Result.success()
                 }
                 val endpoint = "https://quranenc.com/api/v1/translation/sura/$bookKey/$sura"
                 val conn = (URL(endpoint).openConnection() as? HttpsURLConnection)
@@ -51,7 +61,7 @@ class TafsirDownloadWorker(
                 val code = conn.responseCode
                 if (code != 200) {
                     conn.disconnect()
-                    pkgDao.updateProgress(bookKey, "FAILED", (sura * 100) / 114, "")
+                    pkgDao.updateProgress(bookKey, "FAILED", ((sura - 1) * 100) / 114, "")
                     return@withContext Result.retry()
                 }
 
@@ -88,24 +98,26 @@ class TafsirDownloadWorker(
                         )
                     )
                 }
+                tafsirDao.deleteSurahEntries(bookKey, sura)
                 tafsirDao.insertEntries(batch)
-                totalInserted += batch.size
                 pkgDao.updateProgress(bookKey, "DOWNLOADING", (sura * 100) / 114, "")
             }
 
             val shaHex = digest.digest().joinToString("") { "%02x".format(it) }
-            tafsirDao.updateBookStatus(bookKey, 1, totalInserted, "QuranEnc-Live")
+            val totalCount = tafsirDao.countEntriesForBook(bookKey)
+            tafsirDao.updateBookStatus(bookKey, 1, totalCount, "QuranEnc-Live")
             pkgDao.updateProgress(bookKey, "INSTALLED", 100, shaHex)
             Result.success()
         } catch (_: Exception) {
-            pkgDao.updateProgress(bookKey, "FAILED", 0, "")
+            val done = tafsirDao.getMaxDownloadedSurah(bookKey)
+            pkgDao.updateProgress(bookKey, "PAUSED", (done * 100) / 114, "")
             Result.failure()
         }
     }
 
     companion object {
         const val KEY_BOOK_KEY = "book_key"
-        private const val MAX_SURA_RESPONSE_BYTES = 5 * 1024 * 1024 // 5 MB safety cap
+        private const val MAX_SURA_RESPONSE_BYTES = 5 * 1024 * 1024
         private val ALLOWED_BOOK_KEYS = setOf(
             "arabic_moyassar",
             "arabic_seraj",

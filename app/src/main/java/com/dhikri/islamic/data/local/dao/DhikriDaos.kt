@@ -80,6 +80,15 @@ interface TafsirDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntries(entries: List<TafsirEntryEntity>)
 
+    @Query("SELECT COALESCE(MAX(surah_id), 0) FROM tafsir_entries WHERE book_key = :bookKey")
+    suspend fun getMaxDownloadedSurah(bookKey: String): Int
+
+    @Query("SELECT COUNT(*) FROM tafsir_entries WHERE book_key = :bookKey")
+    suspend fun countEntriesForBook(bookKey: String): Int
+
+    @Query("DELETE FROM tafsir_entries WHERE book_key = :bookKey AND surah_id = :surahId")
+    suspend fun deleteSurahEntries(bookKey: String, surahId: Int)
+
     @Query("DELETE FROM tafsir_entries WHERE book_key = :bookKey")
     suspend fun deleteEntriesForBook(bookKey: String)
 
