@@ -25,7 +25,8 @@ data class UserSettings(
     val useHafsV20Text: Boolean = true,
     val khatmahDays: Int = 30,
     val khatmahCurrentPage: Int = 1,
-    val khatmahActive: Boolean = false
+    val khatmahActive: Boolean = false,
+    val dailyTasbihGoal: Int = 100
 )
 
 class UserSettingsRepository(private val context: Context) {
@@ -44,6 +45,7 @@ class UserSettingsRepository(private val context: Context) {
         val KHATMAH_DAYS = intPreferencesKey("khatmah_days")
         val KHATMAH_CURRENT_PAGE = intPreferencesKey("khatmah_current_page")
         val KHATMAH_ACTIVE = booleanPreferencesKey("khatmah_active")
+        val DAILY_TASBIH_GOAL = intPreferencesKey("daily_tasbih_goal")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
@@ -62,7 +64,8 @@ class UserSettingsRepository(private val context: Context) {
             useHafsV20Text = prefs[Keys.USE_HAFS_V20_TEXT] ?: true,
             khatmahDays = prefs[Keys.KHATMAH_DAYS] ?: 30,
             khatmahCurrentPage = prefs[Keys.KHATMAH_CURRENT_PAGE] ?: 1,
-            khatmahActive = prefs[Keys.KHATMAH_ACTIVE] ?: false
+            khatmahActive = prefs[Keys.KHATMAH_ACTIVE] ?: false,
+            dailyTasbihGoal = prefs[Keys.DAILY_TASBIH_GOAL] ?: 100
         )
     }
 
@@ -117,6 +120,10 @@ class UserSettingsRepository(private val context: Context) {
             it[Keys.KHATMAH_CURRENT_PAGE] = page.coerceIn(1, 604)
             it[Keys.KHATMAH_ACTIVE] = true
         }
+    }
+
+    suspend fun setDailyTasbihGoal(goal: Int) {
+        context.dataStore.edit { it[Keys.DAILY_TASBIH_GOAL] = goal.coerceIn(10, 10_000) }
     }
 
     suspend fun resetKhatmah() {

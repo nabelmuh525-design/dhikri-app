@@ -355,7 +355,7 @@ fun SettingsScreen(
             item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
             item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
             item { MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads) }
-            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v1.0.0", Icons.Default.Info, onOpenSources) }
+            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.0.0", Icons.Default.Info, onOpenSources) }
         }
     }
 }

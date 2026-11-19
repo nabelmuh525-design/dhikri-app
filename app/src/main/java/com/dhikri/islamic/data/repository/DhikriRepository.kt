@@ -123,6 +123,17 @@ class DhikriRepository(
         )
     }
 
+    suspend fun decrementTasbih(preset: TasbihPresetEntity) {
+        if (preset.currentCount > 0) {
+            db.tasbihDao().updatePreset(
+                preset.copy(
+                    currentCount = preset.currentCount - 1,
+                    totalCount = (preset.totalCount - 1).coerceAtLeast(0)
+                )
+            )
+        }
+    }
+
     suspend fun resetTasbihCounter(preset: TasbihPresetEntity) {
         db.tasbihDao().updatePreset(preset.copy(currentCount = 0))
     }

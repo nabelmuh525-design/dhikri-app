@@ -125,6 +125,12 @@ class DhikriViewModel(
         }
     }
 
+    fun decrementTasbih(preset: TasbihPresetEntity) {
+        viewModelScope.launch { repository.decrementTasbih(preset) }
+    }
+
+    fun setDailyTasbihGoal(goal: Int) = viewModelScope.launch { settingsRepository.setDailyTasbihGoal(goal) }
+
     fun resetTasbih(preset: TasbihPresetEntity) {
         viewModelScope.launch { repository.resetTasbihCounter(preset) }
     }
