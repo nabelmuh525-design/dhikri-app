@@ -259,9 +259,7 @@ fun MushafReaderScreen(
                     )
                     AssistChip(
                         onClick = {
-                            val shareText = "﴿${ayah.textHafsV20}﴾
-[سورة $surahName — الآية ${ayah.ayahNumber}]
-عبر تطبيق ذِكري"
+                            val shareText = "﴿${ayah.textHafsV20}﴾\n[سورة $surahName — الآية ${ayah.ayahNumber}]\nعبر تطبيق ذِكري"
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, shareText)

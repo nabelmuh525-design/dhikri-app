@@ -268,23 +268,19 @@ fun SourcesAndLicensesScreen(onBack: () -> Unit) {
             item {
                 SourceCard(
                     title = "1. مشروع تنزيل (Tanzil Project)",
-                    body = "بيانات المصحف الشريف (quran-data.xml v1.0) والنص العثماني (quran-uthmani.txt v1.1) دون أي تعديل.
-حقوق النشر: © 2007-2026 Tanzil Project — رخصة Creative Commons Attribution 3.0.
-الموقع الرسمي: https://tanzil.net"
+                    body = "بيانات المصحف الشريف (quran-data.xml v1.0) والنص العثماني (quran-uthmani.txt v1.1) دون أي تعديل.\nحقوق النشر: © 2007-2026 Tanzil Project — رخصة Creative Commons Attribution 3.0.\nالموقع الرسمي: https://tanzil.net"
                 )
             }
             item {
                 SourceCard(
                     title = "2. موسوعة القرآن الكريم (QuranEnc.com)",
-                    body = "حزمة خط حفص العثماني والنص المتوافق معه (Hafs_20.zip — مجمع الملك فهد لطباعة المصحف الشريف)، والتفسير الميسر (arabic_moyassar)، ومعاني الكلمات — السراج في بيان غريب القرآن (arabic_seraj) دون تعديل.
-الموقع الرسمي: https://quranenc.com"
+                    body = "حزمة خط حفص العثماني والنص المتوافق معه (Hafs_20.zip — مجمع الملك فهد لطباعة المصحف الشريف)، والتفسير الميسر (arabic_moyassar)، ومعاني الكلمات — السراج في بيان غريب القرآن (arabic_seraj) دون تعديل.\nالموقع الرسمي: https://quranenc.com"
                 )
             }
             item {
                 SourceCard(
                     title = "3. الأذكار والأدعية — كتاب حصن المسلم",
-                    body = "أذكار الكتاب والسنة من تأليف الشيخ سعيد بن علي بن وهف القحطاني، عبر قاعدة البيانات المفتوحة (رخصة MIT): github.com/YousefAsalya/Islamic-Pro-azkar-API.
-للتخريج الحديثي التفصيلي: الموسوعة الحديثية — الدرر السنية (https://dorar.net/hadith)."
+                    body = "أذكار الكتاب والسنة من تأليف الشيخ سعيد بن علي بن وهف القحطاني، عبر قاعدة البيانات المفتوحة (رخصة MIT): github.com/YousefAsalya/Islamic-Pro-azkar-API.\nللتخريج الحديثي التفصيلي: الموسوعة الحديثية — الدرر السنية (https://dorar.net/hadith)."
                 )
             }
             item {

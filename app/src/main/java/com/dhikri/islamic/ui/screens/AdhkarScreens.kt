@@ -191,10 +191,7 @@ fun AdhkarDetailScreen(
                                 IconButton(onClick = {
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, "${item.textArabic}
-
-المصدر: ${item.sourceReference}
-عبر تطبيق ذِكري")
+                                        putExtra(Intent.EXTRA_TEXT, "${item.textArabic}\n\nالمصدر: ${item.sourceReference}\nعبر تطبيق ذِكري")
                                     }
                                     context.startActivity(Intent.createChooser(shareIntent, "مشاركة الذكر"))
                                 }) {
