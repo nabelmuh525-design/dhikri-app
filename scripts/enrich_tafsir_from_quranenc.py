@@ -69,7 +69,7 @@ def import_from_sqlite_zip(conn: sqlite3.Connection, book_key: str, zip_bytes: b
             src = sqlite3.connect(tmp.name)
             tables = [r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
             target_table = validate_sql_ident(next((t for t in tables if t != "android_metadata"), tables[0]))
-            cols = [r[1] for r in src.execute(f"PRAGMA table_info("{target_table}")").fetchall()]
+            cols = [r[1] for r in src.execute(f'PRAGMA table_info("{target_table}")').fetchall()]
             text_col = validate_sql_ident("translation" if "translation" in cols else ("text" if "text" in cols else cols[-1]))
             foot_col = validate_sql_ident("footnotes") if "footnotes" in cols else None
             sura_col = validate_sql_ident("sura" if "sura" in cols else "sura_id")
