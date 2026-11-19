@@ -10,6 +10,8 @@ import android.content.Context
 import com.dhikri.islamic.data.repository.DhikriRepository
 import com.dhikri.islamic.data.update.AppUpdateInfo
 import com.dhikri.islamic.data.update.AppUpdater
+import android.util.LruCache
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -128,8 +130,28 @@ class DhikriViewModel(
         }
     }
 
-    fun observePageAyahs(pageNumber: Int): Flow<List<AyahEntity>> =
-        repository.observeAyahsByPage(pageNumber.coerceIn(1, 604))
+    private val pageCache = LruCache<Int, List<AyahEntity>>(16)
+
+    fun getCachedPageAyahs(pageNumber: Int): List<AyahEntity> =
+        pageCache.get(pageNumber.coerceIn(1, 604)) ?: emptyList()
+
+    fun observePageAyahs(pageNumber: Int): Flow<List<AyahEntity>> {
+        val safePage = pageNumber.coerceIn(1, 604)
+        return repository.observeAyahsByPage(safePage).onEach { list ->
+            if (list.isNotEmpty()) pageCache.put(safePage, list)
+        }
+    }
+
+    fun prefetchAdjacentPages(pageNumber: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            listOf(pageNumber - 1, pageNumber + 1)
+                .filter { it in 1..604 && pageCache.get(it) == null }
+                .forEach { adj ->
+                    val data = repository.observeAyahsByPage(adj).first()
+                    if (data.isNotEmpty()) pageCache.put(adj, data)
+                }
+        }
+    }
 
     fun observeAdhkarItems(categoryId: Int): Flow<List<AdhkarItemEntity>> =
         repository.observeAdhkarItems(categoryId)

@@ -1,5 +1,9 @@
 package com.dhikri.islamic.ui.navigation
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -79,6 +83,12 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
         currentDestination?.hierarchy?.any { it.route == tab.route } == true
     }
 
+    val isOnSecondaryTab = currentDestination?.route in listOf(
+        BottomTab.Quran.route,
+        BottomTab.Adhkar.route,
+        BottomTab.Qibla.route
+    )
+
     fun navigateToTab(tab: BottomTab) {
         if (tab == BottomTab.Home) {
             val popped = navController.popBackStack(BottomTab.Home.route, inclusive = false)
@@ -95,6 +105,10 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 restoreState = true
             }
         }
+    }
+
+    BackHandler(enabled = isOnSecondaryTab) {
+        navigateToTab(BottomTab.Home)
     }
 
     Scaffold(
@@ -122,7 +136,11 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
             NavHost(
                 navController = navController,
                 startDestination = BottomTab.Home.route,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { fadeIn(animationSpec = tween(160)) },
+                exitTransition = { fadeOut(animationSpec = tween(140)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(160)) },
+                popExitTransition = { fadeOut(animationSpec = tween(140)) }
             ) {
                 composable(BottomTab.Home.route) {
                     HomeScreen(

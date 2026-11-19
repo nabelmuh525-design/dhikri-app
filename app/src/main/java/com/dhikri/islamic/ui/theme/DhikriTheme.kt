@@ -111,7 +111,7 @@ private val LightColors = lightColorScheme(
     surface = IvorySurface,
     onSurface = Color(0xFF18201D),
     surfaceVariant = IvorySurfaceVariant,
-    onSurfaceVariant = Color(0xFF495450),
+    onSurfaceVariant = Color(0xFF3A4440),
     outline = Color(0xFFD5CCBC)
 )
 
@@ -125,11 +125,11 @@ private val DarkColors = darkColorScheme(
     secondaryContainer = Color(0xFF4A3A12),
     onSecondaryContainer = SoftGoldContainer,
     background = DeepNightBackground,
-    onBackground = Color(0xFFEAECE8),
+    onBackground = Color(0xFFF3F6FA),
     surface = DeepNightSurface,
-    onSurface = Color(0xFFEAECE8),
+    onSurface = Color(0xFFF3F6FA),
     surfaceVariant = DeepNightCard,
-    onSurfaceVariant = Color(0xFFB3C2D6),
+    onSurfaceVariant = Color(0xFFCBD7E8),
     outline = Color(0xFF263B59)
 )
 

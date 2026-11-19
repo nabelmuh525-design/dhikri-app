@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.data.local.entity.AyahEntity
 import com.dhikri.islamic.data.local.entity.TafsirEntryEntity
 import com.dhikri.islamic.ui.theme.HafsFontFamily
+import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.theme.ReadingThemes
 import com.dhikri.islamic.ui.theme.readingThemeByKey
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
@@ -53,7 +54,8 @@ fun MushafReaderScreen(
 ) {
     var currentPage by remember { mutableIntStateOf(initialPage.coerceIn(1, 604)) }
     val listState = rememberLazyListState()
-    val ayahs by viewModel.observePageAyahs(currentPage).collectAsState(initial = emptyList())
+    val cachedInitial = remember(currentPage) { viewModel.getCachedPageAyahs(currentPage) }
+    val ayahs by viewModel.observePageAyahs(currentPage).collectAsState(initial = cachedInitial)
     val surahs by viewModel.surahs.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val favoriteAyahs by viewModel.favoriteAyahs.collectAsState()
@@ -73,17 +75,26 @@ fun MushafReaderScreen(
     val palette = readingThemeByKey(settings.readingThemeKey)
 
     DisposableEffect(context) {
-        var engine: TextToSpeech? = null
-        engine = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                engine?.language = Locale("ar")
-            }
-        }
-        tts = engine
         onDispose {
             runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
-            runCatching { engine?.stop(); engine?.shutdown() }
+            runCatching { tts?.stop(); tts?.shutdown() }
         }
+    }
+
+    fun speakArabicMeaning(text: String) {
+        val existing = tts
+        if (existing != null) {
+            existing.speak(text, TextToSpeech.QUEUE_FLUSH, null, "word_meaning")
+            return
+        }
+        var created: TextToSpeech? = null
+        created = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                created?.language = Locale("ar")
+                created?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "word_meaning")
+            }
+        }
+        tts = created
     }
 
     fun stopAllAudio() {
@@ -133,6 +144,7 @@ fun MushafReaderScreen(
 
     LaunchedEffect(currentPage) {
         listState.scrollToItem(0)
+        viewModel.prefetchAdjacentPages(currentPage)
     }
 
     LaunchedEffect(currentPage, ayahs) {
@@ -469,7 +481,7 @@ fun MushafReaderScreen(
                                         if (entry.bookKey == "arabic_seraj") {
                                             TextButton(
                                                 onClick = {
-                                                    tts?.speak(entry.textContent, TextToSpeech.QUEUE_FLUSH, null, "word_meaning")
+                                                    speakArabicMeaning(entry.textContent)
                                                 }
                                             ) {
                                                 Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(18.dp))

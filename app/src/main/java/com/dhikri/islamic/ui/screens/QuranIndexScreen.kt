@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import androidx.activity.compose.BackHandler
+
 import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 
 import androidx.compose.foundation.BorderStroke
@@ -47,6 +49,8 @@ fun QuranIndexScreen(
     var pageInput by remember { mutableStateOf("") }
 
     val lastSurahName = surahs.firstOrNull { it.id == (lastRead?.surahId ?: 1) }?.nameArabic ?: "الفاتحة"
+
+    BackHandler(enabled = showJumpDialog) { showJumpDialog = false }
 
     Scaffold(
         topBar = {

@@ -47,6 +47,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlin.math.abs
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -298,25 +302,44 @@ fun QiblaScreen(onBack: (() -> Unit)? = null) {
         ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
     }
 
-    DisposableEffect(context) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(context, lifecycleOwner) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val rotSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         if (rotSensor == null) {
             hasSensor = false
             onDispose { }
         } else {
+            var lastEmitted = -999f
             val listener = object : SensorEventListener {
                 val rotMatrix = FloatArray(9)
                 val orient = FloatArray(3)
                 override fun onSensorChanged(event: SensorEvent) {
                     SensorManager.getRotationMatrixFromVector(rotMatrix, event.values)
                     SensorManager.getOrientation(rotMatrix, orient)
-                    azimuthDeg = ((Math.toDegrees(orient[0].toDouble()) + 360.0) % 360.0).toFloat()
+                    val nextDeg = ((Math.toDegrees(orient[0].toDouble()) + 360.0) % 360.0).toFloat()
+                    if (abs(nextDeg - lastEmitted) >= 0.8f) {
+                        lastEmitted = nextDeg
+                        azimuthDeg = nextDeg
+                    }
                 }
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
-            sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_UI)
-            onDispose { sensorManager.unregisterListener(listener) }
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_UI)
+                    Lifecycle.Event.ON_PAUSE -> sensorManager.unregisterListener(listener)
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_UI)
+            }
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                sensorManager.unregisterListener(listener)
+            }
         }
     }
 
