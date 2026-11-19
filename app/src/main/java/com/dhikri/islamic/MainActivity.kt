@@ -62,6 +62,10 @@ class MainActivity : ComponentActivity() {
             val settings by vm.settings.collectAsState()
             val shouldAutoUpdate by autoUpdateRequested
 
+            LaunchedEffect(Unit) {
+                vm.checkForAppUpdateWithNotify(this@MainActivity)
+            }
+
             LaunchedEffect(shouldAutoUpdate) {
                 if (shouldAutoUpdate) {
                     autoUpdateRequested.value = false

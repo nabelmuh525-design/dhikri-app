@@ -10,6 +10,7 @@ import android.content.Context
 import com.dhikri.islamic.data.repository.DhikriRepository
 import com.dhikri.islamic.data.update.AppUpdateInfo
 import com.dhikri.islamic.data.update.AppUpdater
+import com.dhikri.islamic.data.update.UpdateCheckWorker
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -98,6 +99,16 @@ class DhikriViewModel(
                 } else {
                     "أنت تستخدم أحدث إصدار من تطبيق ذِكري"
                 }
+            }
+        }
+    }
+
+    fun checkForAppUpdateWithNotify(context: Context) {
+        viewModelScope.launch {
+            val info = AppUpdater.checkForUpdate()
+            _availableUpdate.value = info
+            if (info != null) {
+                UpdateCheckWorker.notifyIfNew(context, info.latestVersion)
             }
         }
     }

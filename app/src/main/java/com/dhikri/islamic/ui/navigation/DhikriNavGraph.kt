@@ -37,6 +37,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.dhikri.islamic.ui.components.WhatsNewDialog
+import com.dhikri.islamic.ui.components.WhatsNewTracker
 import com.dhikri.islamic.ui.screens.*
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.SoftGold
@@ -73,6 +79,8 @@ object Routes {
 @Composable
 fun DhikriAppShell(viewModel: DhikriViewModel) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    var showWhatsNew by remember { mutableStateOf(WhatsNewTracker.shouldShowForCurrentVersion(context)) }
     val tabs = listOf(BottomTab.Home, BottomTab.Quran, BottomTab.Adhkar, BottomTab.Qibla)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -269,6 +277,15 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 composable(Routes.SOURCES) {
                     SourcesAndLicensesScreen(onBack = { navController.popBackStack() })
                 }
+            }
+
+            if (showWhatsNew) {
+                WhatsNewDialog(
+                    onDismiss = {
+                        WhatsNewTracker.markCurrentVersionSeen(context)
+                        showWhatsNew = false
+                    }
+                )
             }
 
             // Floating Auto-Update Download Overlay (visible on any screen when updating)
