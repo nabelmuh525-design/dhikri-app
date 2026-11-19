@@ -304,8 +304,7 @@ fun SettingsScreen(
     viewModel: DhikriViewModel,
     onBack: () -> Unit,
     onOpenDownloads: () -> Unit,
-    onOpenSources: () -> Unit,
-    onBack: () -> Unit
+    onOpenSources: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
 
