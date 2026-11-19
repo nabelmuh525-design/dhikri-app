@@ -1,0 +1,4 @@
+-keep class com.dhikri.islamic.data.local.entity.** { *; }
+-keep class com.dhikri.islamic.data.local.DhikriDatabase { *; }
+-keep class com.dhikri.islamic.data.local.DhikriDatabase_Impl { *; }
+-dontwarn org.jetbrains.annotations.**
