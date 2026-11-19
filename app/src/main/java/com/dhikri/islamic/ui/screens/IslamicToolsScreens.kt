@@ -9,7 +9,9 @@ import android.hardware.SensorManager
 import android.icu.text.DateFormat
 import android.icu.util.Calendar
 import android.icu.util.ULocale
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -721,31 +723,67 @@ fun AudioRecitationsScreen(
 
     fun playSurah(surahId: Int) {
         runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
+        mediaPlayer = null
+        playingSurahId = null
         val file = localFile(selectedReciter.key, surahId)
-        val urlOrPath = if (file.exists() && file.length() > 1000) {
-            file.absolutePath
-        } else {
-            surahUrl(selectedReciter, surahId)
-        }
-        statusMessage = if (file.exists()) "جاري التشغيل أوفلاين..." else "جاري التشغيل بصوت ${selectedReciter.nameArabic}..."
-        val mp = MediaPlayer()
-        runCatching {
-            mp.setDataSource(urlOrPath)
-            mp.setOnPreparedListener {
-                it.start()
-                playingSurahId = surahId
-                statusMessage = "قيد التشغيل الآن — ${selectedReciter.nameArabic}"
+        val isLocal = file.exists() && file.length() > 1000
+        statusMessage = if (isLocal) "جاري التشغيل أوفلاين..." else "جاري تجهيز التلاوة بصوت ${selectedReciter.nameArabic}..."
+
+        scope.launch {
+            val finalSource = if (isLocal) {
+                file.absolutePath
+            } else {
+                // Resolve any redirect on IO thread so MediaPlayer gets the direct MP3 stream
+                withContext(Dispatchers.IO) {
+                    val primary = surahUrl(selectedReciter, surahId)
+                    runCatching {
+                        val conn = (URL(primary).openConnection() as HttpsURLConnection).apply {
+                            connectTimeout = 10_000
+                            readTimeout = 10_000
+                            requestMethod = "HEAD"
+                            instanceFollowRedirects = true
+                            setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
+                        }
+                        val resolved = conn.url.toString()
+                        conn.disconnect()
+                        resolved
+                    }.getOrDefault(primary)
+                }
             }
-            mp.setOnCompletionListener { playingSurahId = null; statusMessage = null }
-            mp.setOnErrorListener { _, _, _ ->
-                playingSurahId = null
-                statusMessage = "تعذّر التشغيل — تأكد من الاتصال بالإنترنت أو حمّل السورة أولاً"
-                true
+
+            val mp = MediaPlayer()
+            runCatching {
+                mp.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                if (isLocal) {
+                    mp.setDataSource(finalSource)
+                } else {
+                    mp.setDataSource(context, Uri.parse(finalSource), mapOf("User-Agent" to "Mozilla/5.0 (Android)"))
+                }
+                mp.setOnPreparedListener {
+                    it.start()
+                    playingSurahId = surahId
+                    val sName = surahs.firstOrNull { s -> s.id == surahId }?.nameArabic ?: "$surahId"
+                    statusMessage = "يُتلى الآن: سورة $sName — ${selectedReciter.nameArabic}"
+                }
+                mp.setOnCompletionListener {
+                    playingSurahId = null
+                    statusMessage = null
+                }
+                mp.setOnErrorListener { _, _, _ ->
+                    playingSurahId = null
+                    statusMessage = "تعذّر تشغيل السورة — تأكد من الإنترنت أو اضغط زر التحميل بجانبها"
+                    true
+                }
+                mp.prepareAsync()
+                mediaPlayer = mp
+            }.onFailure {
+                statusMessage = "تعذّر بدء التشغيل — جرّب تحميل السورة أولاً"
             }
-            mp.prepareAsync()
-            mediaPlayer = mp
-        }.onFailure {
-            statusMessage = "تعذّر بدء التشغيل"
         }
     }
 

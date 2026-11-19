@@ -20,15 +20,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dhikri.islamic.BuildConfig
+import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.EmeraldPrimary
 import com.dhikri.islamic.ui.theme.ReadingThemes
 import com.dhikri.islamic.ui.theme.SoftGold
-import com.dhikri.islamic.BuildConfig
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,7 +56,12 @@ fun MoreScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("القائمة والمزيد", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = EmeraldDark,
+                    titleContentColor = SoftGold,
+                    navigationIconContentColor = SoftGold
+                ),
+                title = { Text("القائمة والأدوات", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
@@ -64,77 +73,189 @@ fun MoreScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Group 1: العبادات
-            item { GroupHeader("العبادات") }
-            item { MoreRow("ختمة القرآن الكريم", "إنشاء خطة ختمة ومتابعة التقدم اليومي", Icons.Default.AutoAwesome, onOpenKhatmah) }
-            item { MoreRow("الاستماع للقرآن الكريم", "تلاوات القراء مع إمكانية التحميل أوفلاين", Icons.Default.Headphones, onOpenRecitations) }
-            item { MoreRow("الرُّقية الشرعية", "آيات وأدعية موثقة من القرآن والصحيحين", Icons.Default.HealthAndSafety, onOpenRuqyah) }
-            item { MoreRow("أسماء الله الحسنى", "الـ 99 اسماً ومعانيها الموثقة أوفلاين", Icons.Default.Stars, onOpenAsmaUlHusna) }
-            item { MoreRow("حصن المسلم والأذكار", "134 باباً مصنفاً من الأذكار والأدعية", Icons.Default.MenuBook, onOpenHisnAlMuslim) }
-            item { MoreRow("السبحة الإلكترونية", "عداد تسبيح، أهداف مخصصة، وإحصائيات يومية", Icons.Default.TouchApp, onOpenTasbih) }
-
-            // Group 2: الأدوات الإسلامية
-            item { Spacer(Modifier.height(4.dp)); GroupHeader("الأدوات الإسلامية") }
-            item { MoreRow("اتجاه القبلة", "بوصلة القبلة وحساب الزاوية دون إنترنت", Icons.Default.Explore, onOpenQibla) }
-
-            // Group 3: التخصيص
-            item { Spacer(Modifier.height(4.dp)); GroupHeader("التخصيص وإدارة المحتوى") }
-            item { MoreRow("مركز التنزيلات وإدارة المساحة", "حالة الحزم (محمّل / غير محمّل) وحجم الملفات", Icons.Default.CloudDownload, onOpenDownloads) }
-            item { MoreRow("المفضلة والعلامات", "الآيات والأذكار والقصص المحفوظة", Icons.Default.Favorite, onOpenFavorites) }
-            item { MoreRow("الإعدادات والتنبيهات", "ألوان القراءة لراحة العين، الخط، والوضع الليلي", Icons.Default.Settings, onOpenSettings) }
-
-            // Group 4: التطبيق
-            item { Spacer(Modifier.height(4.dp)); GroupHeader("التطبيق") }
+            // Section 1: العبادات (Modern 2-column grid tiles)
             item {
-                MoreRow("مشاركة تطبيق ذِكري", "انشر الخير وشارك التطبيق مع أحبابك", Icons.Default.Share) {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "تطبيق ذِكري | DHIKRI — المصحف الشريف، التفسير، الأذكار، الختمة، والسبحة دون إنترنت.")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GroupHeader("العبادات")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ModernGridTile(
+                            title = "ختمة القرآن",
+                            subtitle = "خطة ومتابعة يومية",
+                            icon = Icons.Default.AutoAwesome,
+                            colors = listOf(Color(0xFF1A4378), EmeraldDark),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenKhatmah
+                        )
+                        ModernGridTile(
+                            title = "الاستماع للقرآن",
+                            subtitle = "5 قراء مع التحميل",
+                            icon = Icons.Default.Headphones,
+                            colors = listOf(Color(0xFF28598A), Color(0xFF123254)),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenRecitations
+                        )
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "مشاركة تطبيق ذِكري"))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ModernGridTile(
+                            title = "الرُّقية الشرعية",
+                            subtitle = "آيات وأدعية موثقة",
+                            icon = Icons.Default.HealthAndSafety,
+                            colors = listOf(Color(0xFF2E6B5E), Color(0xFF134036)),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenRuqyah
+                        )
+                        ModernGridTile(
+                            title = "أسماء الله الحسنى",
+                            subtitle = "99 اسماً ومعانيها",
+                            icon = Icons.Default.Stars,
+                            colors = listOf(Color(0xFF8C6924), Color(0xFF594010)),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenAsmaUlHusna
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ModernGridTile(
+                            title = "حصن المسلم",
+                            subtitle = "134 باباً مصنفاً",
+                            icon = Icons.Default.MenuBook,
+                            colors = listOf(Color(0xFF4F468C), Color(0xFF2B2459)),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenHisnAlMuslim
+                        )
+                        ModernGridTile(
+                            title = "عداد التسبيح",
+                            subtitle = "سبحة وأهداف يومية",
+                            icon = Icons.Default.TouchApp,
+                            colors = listOf(Color(0xFF1E5743), Color(0xFF0E3326)),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenTasbih
+                        )
+                    }
                 }
             }
-            item { MoreRow("حول التطبيق والمصادر والتراخيص", "Tanzil وQuranEnc وحصن المسلم وسياسة الخصوصية", Icons.Default.VerifiedUser, onOpenSources) }
+
+            // Section 2: الأدوات والتخصيص (Sleek grouped card container)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GroupHeader("الأدوات والتخصيص")
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(0.9.dp, SoftGold.copy(alpha = 0.45f))
+                    ) {
+                        Column {
+                            GroupedMenuItem("اتجاه القبلة", "بوصلة الكعبة المشرفة أوفلاين", Icons.Default.Explore, onOpenQibla)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
+                            GroupedMenuItem("مركز التنزيلات", "إدارة التفاسير والمساحة (محمّل / غير محمّل)", Icons.Default.CloudDownload, onOpenDownloads)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
+                            GroupedMenuItem("المفضلة والعلامات", "الآيات والأذكار والقصص المحفوظة", Icons.Default.Favorite, onOpenFavorites)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
+                            GroupedMenuItem("الإعدادات وتحديث التطبيق", "ألوان القراءة، الخط، التنبيهات، والتحديثات", Icons.Default.Settings, onOpenSettings)
+                        }
+                    }
+                }
+            }
+
+            // Section 3: التطبيق
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GroupHeader("التطبيق")
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(0.9.dp, SoftGold.copy(alpha = 0.45f))
+                    ) {
+                        Column {
+                            GroupedMenuItem("مشاركة تطبيق ذِكري", "شارك الأجر مع أهلك وأصدقائك", Icons.Default.Share) {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, "تطبيق ذِكري | DHIKRI — المصحف الشريف، التفسير، الأذكار، الختمة، والسبحة دون إنترنت.")
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة تطبيق ذِكري"))
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
+                            GroupedMenuItem("المصادر والتراخيص والخصوصية", "الإصدار v${BuildConfig.VERSION_NAME} • Tanzil وQuranEnc", Icons.Default.VerifiedUser, onOpenSources)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun GroupHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(18.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(SoftGold)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
 }
 
 @Composable
-private fun MoreRow(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.6.dp, SoftGold.copy(alpha = 0.35f))
+private fun ModernGridTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .height(106.dp)
+            .shadow(4.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.linearGradient(colors))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(icon, contentDescription = title, tint = SoftGold, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center, maxLines = 1)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.82f), textAlign = TextAlign.Center, maxLines = 1)
         }
+    }
+}
+
+@Composable
+private fun GroupedMenuItem(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(EmeraldDark),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = title, tint = SoftGold, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -148,7 +269,12 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("مركز التنزيلات") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = EmeraldDark,
+                    titleContentColor = SoftGold,
+                    navigationIconContentColor = SoftGold
+                ),
+                title = { Text("مركز التنزيلات", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
@@ -267,7 +393,12 @@ fun FavoritesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("المفضلة والعلامات") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = EmeraldDark,
+                    titleContentColor = SoftGold,
+                    navigationIconContentColor = SoftGold
+                ),
+                title = { Text("المفضلة والعلامات", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
@@ -316,7 +447,12 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("الإعدادات") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = EmeraldDark,
+                    titleContentColor = SoftGold,
+                    navigationIconContentColor = SoftGold
+                ),
+                title = { Text("الإعدادات", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
@@ -330,11 +466,75 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Clean, Organized App Update Card
             item {
-                SettingSwitch("الوضع الليلي للتطبيق", settings.darkMode) { viewModel.setDarkMode(it) }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = SoftGold)
+                                Text("تحديث تطبيق ذِكري", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    "v${BuildConfig.VERSION_NAME}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                        updateStatusMsg?.let { msg ->
+                            Text(msg, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        updateProgress?.let { pct ->
+                            LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth())
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.checkForAppUpdate(silent = false) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("فحص التحديثات")
+                            }
+                            if (availableUpdate != null) {
+                                Button(
+                                    onClick = { viewModel.installAppUpdate(context) },
+                                    enabled = updateProgress == null,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("تحديث v${availableUpdate?.latestVersion}")
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
+            item { SettingSwitch("الوضع الليلي للتطبيق", settings.darkMode) { viewModel.setDarkMode(it) } }
             item {
-                Card(shape = RoundedCornerShape(14.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("لون القراءة في المصحف (لراحة العين)", fontWeight = FontWeight.SemiBold)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -351,12 +551,7 @@ fun SettingsScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Box(
-                                            Modifier
-                                                .size(16.dp)
-                                                .clip(CircleShape)
-                                                .background(theme.accentColor)
-                                        )
+                                        Box(Modifier.size(16.dp).clip(CircleShape).background(theme.accentColor))
                                         Text(theme.labelArabic, color = theme.textColor, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
@@ -366,7 +561,7 @@ fun SettingsScreen(
                 }
             }
             item {
-                Card(shape = RoundedCornerShape(14.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp)) {
                         Text("حجم خط المصحف: ${settings.mushafFontSizeSp.toInt()} sp", fontWeight = FontWeight.SemiBold)
                         Slider(
@@ -380,41 +575,27 @@ fun SettingsScreen(
             item { SettingSwitch("الاهتزاز في السبحة الإلكترونية", settings.vibrationEnabled) { viewModel.setVibrationEnabled(it) } }
             item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
             item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
-            item { MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads) }
+
             item {
-                Card(shape = RoundedCornerShape(16.dp), border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.5f))) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("تحديث تطبيق ذِكري (الإصدار الحالي: v${BuildConfig.VERSION_NAME})", fontWeight = FontWeight.Bold)
-                        updateStatusMsg?.let { msg ->
-                            Text(msg, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        }
-                        updateProgress?.let { pct ->
-                            LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth())
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { viewModel.checkForAppUpdate(silent = false) }) {
-                                Text("التحقق من التحديثات")
-                            }
-                            if (availableUpdate != null) {
-                                Button(
-                                    onClick = { viewModel.installAppUpdate(context) },
-                                    enabled = updateProgress == null
-                                ) {
-                                    Text("تحديث إلى v${availableUpdate?.latestVersion}")
-                                }
-                            }
-                        }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.4f))
+                ) {
+                    Column {
+                        GroupedMenuItem("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
+                        GroupedMenuItem("المصادر والتراخيص والخصوصية", "حول تطبيق ذِكري v${BuildConfig.VERSION_NAME}", Icons.Default.Info, onOpenSources)
                     }
                 }
             }
-            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.9.0", Icons.Default.Info, onOpenSources) }
         }
     }
 }
 
 @Composable
 private fun SettingSwitch(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Card(shape = RoundedCornerShape(14.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -432,7 +613,12 @@ fun SourcesAndLicensesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("المصادر والتراخيص والخصوصية") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = EmeraldDark,
+                    titleContentColor = SoftGold,
+                    navigationIconContentColor = SoftGold
+                ),
+                title = { Text("المصادر والتراخيص والخصوصية", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")

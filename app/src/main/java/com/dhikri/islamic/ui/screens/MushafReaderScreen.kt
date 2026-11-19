@@ -1,7 +1,9 @@
 package com.dhikri.islamic.ui.screens
 
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.net.Uri
 import android.speech.tts.TextToSpeech
 import java.util.Locale
 import androidx.activity.compose.BackHandler
@@ -12,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -47,6 +50,7 @@ fun MushafReaderScreen(
     onOpenDownloads: () -> Unit
 ) {
     var currentPage by remember { mutableIntStateOf(initialPage.coerceIn(1, 604)) }
+    val listState = rememberLazyListState()
     val ayahs by viewModel.observePageAyahs(currentPage).collectAsState(initial = emptyList())
     val surahs by viewModel.surahs.collectAsState()
     val settings by viewModel.settings.collectAsState()
@@ -96,7 +100,13 @@ fun MushafReaderScreen(
         audioStatusText = "جاري تشغيل النطق المجوّد (الشيخ الحصري)..."
         val mp = MediaPlayer()
         runCatching {
-            mp.setDataSource(url)
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            mp.setDataSource(context, Uri.parse(url), mapOf("User-Agent" to "Mozilla/5.0 (Android)"))
             mp.setOnPreparedListener {
                 it.start()
                 isPlayingAyahAudio = true
@@ -117,6 +127,10 @@ fun MushafReaderScreen(
             isPlayingAyahAudio = false
             audioStatusText = "تعذّر تشغيل الصوت"
         }
+    }
+
+    LaunchedEffect(currentPage) {
+        listState.scrollToItem(0)
     }
 
     LaunchedEffect(currentPage, ayahs) {
@@ -207,6 +221,7 @@ fun MushafReaderScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
