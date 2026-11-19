@@ -1,5 +1,6 @@
 package com.dhikri.islamic.ui.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
@@ -11,7 +12,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -21,11 +24,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dhikri.islamic.ui.screens.*
+import com.dhikri.islamic.ui.theme.EmeraldDark
+import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
 sealed class BottomTab(val route: String, val label: String, val icon: ImageVector) {
     data object Home : BottomTab("home", "الرئيسية", Icons.Default.Home)
-    data object Quran : BottomTab("quran", "القرآن الكريم", Icons.Default.MenuBook)
+    data object Quran : BottomTab("quran", "القرآن", Icons.Default.MenuBook)
     data object Adhkar : BottomTab("adhkar", "الأذكار", Icons.Default.VolunteerActivism)
     data object Stories : BottomTab("stories", "الحكايات", Icons.Default.AutoStories)
     data object More : BottomTab("more", "المزيد", Icons.Default.MoreHoriz)
@@ -41,6 +46,12 @@ object Routes {
     const val SETTINGS = "settings"
     const val SOURCES = "sources"
     const val FAVORITES = "favorites"
+    const val KHATMAH = "khatmah"
+    const val RECITATIONS = "recitations"
+    const val RUQYAH = "ruqyah"
+    const val ASMA_UL_HUSNA = "asma_ul_husna"
+    const val QIBLA = "qibla"
+    const val HIJRI = "hijri"
 
     fun mushafPage(page: Int) = "mushaf/${page.coerceIn(1, 604)}"
     fun adhkarDetail(categoryId: Int) = "adhkar_detail/$categoryId"
@@ -58,29 +69,53 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
         currentDestination?.hierarchy?.any { it.route == tab.route } == true
     }
 
+    fun navigateToTab(tab: BottomTab) {
+        if (tab == BottomTab.Home) {
+            val popped = navController.popBackStack(BottomTab.Home.route, inclusive = false)
+            if (!popped) {
+                navController.navigate(BottomTab.Home.route) {
+                    popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        } else {
+            navController.navigate(tab.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    tabs.forEach { tab ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                Column {
+                    HorizontalDivider(thickness = 1.5.dp, color = SoftGold.copy(alpha = 0.7f))
+                    NavigationBar(
+                        containerColor = EmeraldDark,
+                        contentColor = Color.White
+                    ) {
+                        tabs.forEach { tab ->
+                            val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    if (tab == BottomTab.Home || !selected) {
+                                        navigateToTab(tab)
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label, maxLines = 1) }
-                        )
+                                },
+                                icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                label = { Text(tab.label, maxLines = 1) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = SoftGold,
+                                    selectedTextColor = SoftGold,
+                                    indicatorColor = Color(0xFF165240),
+                                    unselectedIconColor = Color.White.copy(alpha = 0.8f),
+                                    unselectedTextColor = Color.White.copy(alpha = 0.8f)
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -95,10 +130,13 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 HomeScreen(
                     viewModel = viewModel,
                     onContinueReading = { page -> navController.navigate(Routes.mushafPage(page)) },
-                    onOpenQuran = { navController.navigate(BottomTab.Quran.route) },
+                    onOpenQuran = { navigateToTab(BottomTab.Quran) },
+                    onOpenAdhkarTab = { navigateToTab(BottomTab.Adhkar) },
                     onOpenAdhkarCategory = { id -> navController.navigate(Routes.adhkarDetail(id)) },
                     onOpenTasbih = { navController.navigate(Routes.TASBIH) },
-                    onOpenStories = { navController.navigate(BottomTab.Stories.route) }
+                    onOpenStories = { navigateToTab(BottomTab.Stories) },
+                    onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS) }
                 )
             }
             composable(BottomTab.Quran.route) {
@@ -163,12 +201,41 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
             }
             composable(BottomTab.More.route) {
                 MoreScreen(
+                    onOpenKhatmah = { navController.navigate(Routes.KHATMAH) },
+                    onOpenRecitations = { navController.navigate(Routes.RECITATIONS) },
+                    onOpenRuqyah = { navController.navigate(Routes.RUQYAH) },
+                    onOpenAsmaUlHusna = { navController.navigate(Routes.ASMA_UL_HUSNA) },
                     onOpenTasbih = { navController.navigate(Routes.TASBIH) },
+                    onOpenHisnAlMuslim = { navigateToTab(BottomTab.Adhkar) },
+                    onOpenQibla = { navController.navigate(Routes.QIBLA) },
+                    onOpenHijri = { navController.navigate(Routes.HIJRI) },
                     onOpenDownloads = { navController.navigate(Routes.DOWNLOADS) },
                     onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenSources = { navController.navigate(Routes.SOURCES) }
                 )
+            }
+            composable(Routes.KHATMAH) {
+                KhatmahScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenPage = { page -> navController.navigate(Routes.mushafPage(page)) }
+                )
+            }
+            composable(Routes.RECITATIONS) {
+                AudioRecitationsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.RUQYAH) {
+                RuqyahScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.ASMA_UL_HUSNA) {
+                AsmaUlHusnaScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.QIBLA) {
+                QiblaScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.HIJRI) {
+                HijriCalendarScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.TASBIH) {
                 TasbihScreen(viewModel = viewModel, onBack = { navController.popBackStack() })

@@ -15,21 +15,87 @@ import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.R
 
 val EmeraldPrimary = Color(0xFF0B5D46)
-val EmeraldDark = Color(0xFF063D2D)
+val EmeraldDark = Color(0xFF0D3B2E)
 val EmeraldLight = Color(0xFF2E8B6E)
-val SoftGold = Color(0xFFC9A24B)
+val SoftGold = Color(0xFFD4AF37)
 val SoftGoldContainer = Color(0xFFF6EBD1)
-val IvoryBackground = Color(0xFFFAF7F0)
+val IvoryBackground = Color(0xFFF8F4EC)
 val IvorySurface = Color(0xFFFFFDF8)
 val IvorySurfaceVariant = Color(0xFFF0EADF)
 val DeepNightBackground = Color(0xFF0D1412)
 val DeepNightSurface = Color(0xFF141F1C)
 val DeepNightCard = Color(0xFF1B2A26)
-val NightReadingParchment = Color(0xFF121816)
 
 val HafsFontFamily = FontFamily(
     Font(R.font.hafs_20, FontWeight.Normal)
 )
+
+data class ReadingThemePalette(
+    val key: String,
+    val labelArabic: String,
+    val background: Color,
+    val surface: Color,
+    val textColor: Color,
+    val accentColor: Color,
+    val dividerColor: Color,
+    val isDark: Boolean
+)
+
+val ReadingThemes: List<ReadingThemePalette> = listOf(
+    ReadingThemePalette(
+        key = "parchment",
+        labelArabic = "ورق المصحف الكريمي",
+        background = Color(0xFFFBF6E8),
+        surface = Color(0xFFF2E8D0),
+        textColor = Color(0xFF211C14),
+        accentColor = Color(0xFF9C7826),
+        dividerColor = Color(0xFFDCCEA8),
+        isDark = false
+    ),
+    ReadingThemePalette(
+        key = "classic",
+        labelArabic = "أبيض مريح",
+        background = Color(0xFFFAFBFA),
+        surface = Color(0xFFEEF3F0),
+        textColor = Color(0xFF141A17),
+        accentColor = Color(0xFF0B5D46),
+        dividerColor = Color(0xFFD4DED9),
+        isDark = false
+    ),
+    ReadingThemePalette(
+        key = "sage",
+        labelArabic = "أخضر هادئ للعين",
+        background = Color(0xFFEAF4EE),
+        surface = Color(0xFFD9EBDF),
+        textColor = Color(0xFF13261C),
+        accentColor = Color(0xFF0B5D46),
+        dividerColor = Color(0xFFBED8C8),
+        isDark = false
+    ),
+    ReadingThemePalette(
+        key = "sepia_dark",
+        labelArabic = "ليلي دافئ (سيبيا)",
+        background = Color(0xFF1B1712),
+        surface = Color(0xFF272119),
+        textColor = Color(0xFFE8DCC6),
+        accentColor = Color(0xFFD8B55B),
+        dividerColor = Color(0xFF3E3529),
+        isDark = true
+    ),
+    ReadingThemePalette(
+        key = "amoled_dark",
+        labelArabic = "ليلي داكن (AMOLED)",
+        background = Color(0xFF0B100E),
+        surface = Color(0xFF141E1B),
+        textColor = Color(0xFFE3E8E5),
+        accentColor = Color(0xFF5CC4A1),
+        dividerColor = Color(0xFF253530),
+        isDark = true
+    )
+)
+
+fun readingThemeByKey(key: String): ReadingThemePalette =
+    ReadingThemes.firstOrNull { it.key == key } ?: ReadingThemes.first()
 
 private val LightColors = lightColorScheme(
     primary = EmeraldPrimary,

@@ -2,11 +2,16 @@ package com.dhikri.islamic.ui.screens
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -15,7 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -26,8 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.data.local.entity.AyahEntity
 import com.dhikri.islamic.data.local.entity.TafsirEntryEntity
 import com.dhikri.islamic.ui.theme.HafsFontFamily
-import com.dhikri.islamic.ui.theme.NightReadingParchment
-import com.dhikri.islamic.ui.theme.SoftGold
+import com.dhikri.islamic.ui.theme.ReadingThemes
+import com.dhikri.islamic.ui.theme.readingThemeByKey
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,18 +52,19 @@ fun MushafReaderScreen(
 
     var selectedAyah by remember { mutableStateOf<AyahEntity?>(null) }
     var selectedTafsirEntries by remember { mutableStateOf<List<TafsirEntryEntity>>(emptyList()) }
+    var showThemePicker by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
-    // Save reading position automatically whenever page loads
+    val palette = readingThemeByKey(settings.readingThemeKey)
+
     LaunchedEffect(currentPage, ayahs) {
         ayahs.firstOrNull()?.let { first ->
             viewModel.saveLastRead(first.surahId, first.ayahNumber, currentPage)
         }
     }
 
-    // Load tafsir when user taps an ayah
     LaunchedEffect(selectedAyah) {
         val a = selectedAyah
         selectedTafsirEntries = if (a != null) {
@@ -68,22 +74,23 @@ fun MushafReaderScreen(
         }
     }
 
-    // Predictive Back: if Tafsir sheet is open, close it first before popping Mushaf screen
-    BackHandler(enabled = selectedAyah != null) {
-        selectedAyah = null
+    BackHandler(enabled = selectedAyah != null || showThemePicker) {
+        if (showThemePicker) showThemePicker = false else selectedAyah = null
     }
-
-    val isNight = settings.nightReadingMode
-    val bgColor = if (isNight) NightReadingParchment else MaterialTheme.colorScheme.background
-    val txtColor = if (isNight) Color(0xFFE7E2D4) else MaterialTheme.colorScheme.onBackground
 
     val firstAyah = ayahs.firstOrNull()
     val headerSurah = surahs.firstOrNull { it.id == (firstAyah?.surahId ?: 1) }
 
     Scaffold(
-        containerColor = bgColor,
+        containerColor = palette.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = palette.surface,
+                    titleContentColor = palette.textColor,
+                    navigationIconContentColor = palette.textColor,
+                    actionIconContentColor = palette.accentColor
+                ),
                 title = {
                     Column {
                         Text(
@@ -93,7 +100,7 @@ fun MushafReaderScreen(
                         Text(
                             text = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = palette.textColor.copy(alpha = 0.72f)
                         )
                     }
                 },
@@ -109,17 +116,14 @@ fun MushafReaderScreen(
                     IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp + 2f) }) {
                         Icon(Icons.Default.TextIncrease, contentDescription = "تكبير الخط")
                     }
-                    IconButton(onClick = { viewModel.setNightReadingMode(!isNight) }) {
-                        Icon(
-                            if (isNight) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = "القراءة الليلية"
-                        )
+                    IconButton(onClick = { showThemePicker = true }) {
+                        Icon(Icons.Default.Palette, contentDescription = "ألوان القراءة لراحة العين")
                     }
                 }
             )
         },
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
+            Surface(color = palette.surface, tonalElevation = 3.dp) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -132,7 +136,7 @@ fun MushafReaderScreen(
                         enabled = currentPage > 1
                     ) { Text("الصفحة السابقة") }
 
-                    Text("$currentPage / 604", fontWeight = FontWeight.Bold)
+                    Text("$currentPage / 604", fontWeight = FontWeight.Bold, color = palette.textColor)
 
                     Button(
                         onClick = { if (currentPage < 604) currentPage++ },
@@ -155,17 +159,19 @@ fun MushafReaderScreen(
                 if (ayah.ayahNumber == 1 && surah != null) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        colors = CardDefaults.cardColors(containerColor = palette.surface),
+                        border = BorderStroke(1.dp, palette.accentColor.copy(alpha = 0.45f)),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(
                             Modifier.fillMaxWidth().padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("سورة ${surah.nameArabic}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            Text("سورة ${surah.nameArabic}", style = MaterialTheme.typography.titleLarge, color = palette.accentColor)
                             Text(
                                 "${surah.revelationType} • ${surah.ayahCount} آية",
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.textColor.copy(alpha = 0.75f)
                             )
                         }
                     }
@@ -174,7 +180,7 @@ fun MushafReaderScreen(
                             text = "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
                             fontFamily = HafsFontFamily,
                             fontSize = (settings.mushafFontSizeSp - 2f).sp,
-                            color = SoftGold,
+                            color = palette.accentColor,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         )
@@ -193,7 +199,7 @@ fun MushafReaderScreen(
                         fontFamily = HafsFontFamily,
                         fontSize = settings.mushafFontSizeSp.sp,
                         lineHeight = (settings.mushafFontSizeSp * 1.85f).sp,
-                        color = txtColor,
+                        color = palette.textColor,
                         textAlign = TextAlign.Justify,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -203,16 +209,85 @@ fun MushafReaderScreen(
                                 Text(
                                     "موضع سجدة (${ayah.sajdahType ?: "مستحبة"})",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = SoftGold
+                                    color = palette.accentColor
                                 )
                             }
                             if (isFav) {
-                                Text("★ في المفضلة", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                Text("★ في المفضلة", style = MaterialTheme.typography.labelMedium, color = palette.accentColor)
                             }
                         }
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                HorizontalDivider(color = palette.dividerColor.copy(alpha = 0.55f))
+            }
+        }
+    }
+
+    // Eye-Comfort Reading Theme Picker Sheet
+    if (showThemePicker) {
+        ModalBottomSheet(onDismissRequest = { showThemePicker = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "اختر لون القراءة لراحة العين",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                ReadingThemes.forEach { theme ->
+                    val isSelected = theme.key == palette.key
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setReadingTheme(theme.key)
+                                showThemePicker = false
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = theme.background),
+                        border = BorderStroke(
+                            width = if (isSelected) 2.5.dp else 1.dp,
+                            color = if (isSelected) theme.accentColor else theme.dividerColor
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.surface)
+                                        .border(2.dp, theme.accentColor, CircleShape)
+                                )
+                                Column {
+                                    Text(theme.labelArabic, color = theme.textColor, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+                                        fontFamily = HafsFontFamily,
+                                        color = theme.textColor.copy(alpha = 0.85f),
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = "مُختار", tint = theme.accentColor)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -235,8 +310,10 @@ fun MushafReaderScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AssistChip(
                         onClick = {
@@ -308,7 +385,22 @@ fun MushafReaderScreen(
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text(entry.textContent, style = MaterialTheme.typography.bodyLarge)
+                                    if (entry.textContent.isBlank()) {
+                                        Text(
+                                            "لا توجد مفردات غريبة مشروحة لهذه الآية في هذا الكتاب.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        Text(entry.textContent, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                    entry.footnotes?.takeIf { it.isNotBlank() }?.let { notes ->
+                                        Text(
+                                            notes,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }

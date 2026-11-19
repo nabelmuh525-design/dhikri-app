@@ -1,10 +1,14 @@
 package com.dhikri.islamic.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,13 +18,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dhikri.islamic.R
 import com.dhikri.islamic.ui.theme.EmeraldDark
-import com.dhikri.islamic.ui.theme.EmeraldPrimary
+import com.dhikri.islamic.ui.theme.HafsFontFamily
 import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
@@ -29,9 +39,12 @@ fun HomeScreen(
     viewModel: DhikriViewModel,
     onContinueReading: (Int) -> Unit,
     onOpenQuran: () -> Unit,
+    onOpenAdhkarTab: () -> Unit,
     onOpenAdhkarCategory: (Int) -> Unit,
     onOpenTasbih: () -> Unit,
-    onOpenStories: () -> Unit
+    onOpenStories: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val lastRead by viewModel.lastRead.collectAsState()
     val surahs by viewModel.surahs.collectAsState()
@@ -40,177 +53,336 @@ fun HomeScreen(
     val lastSurahName = surahs.firstOrNull { it.id == (lastRead?.surahId ?: 1) }?.nameArabic ?: "الفاتحة"
     val lastPage = lastRead?.pageNumber ?: 1
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(vertical = 16.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        item {
+        // 1. Sunrise Mosque Hero Header + Overlapping Verse Card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(315.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.home_header_bg),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(265.dp)
+            )
+            // Soft warm gradient veil for crisp logo readability
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .height(265.dp)
                     .background(
-                        Brush.linearGradient(listOf(EmeraldDark, EmeraldPrimary))
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0x280D3B2E),
+                                Color(0x14FFF8E7),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f)
+                            )
+                        )
                     )
-                    .padding(20.dp)
+            )
+
+            // Top action icons: Settings (start/right in RTL) & Bell (end/left in RTL)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "ذِكري | DHIKRI",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = SoftGold
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(EmeraldDark.copy(alpha = 0.82f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "الإعدادات",
+                        tint = Color.White
+                    )
+                }
+
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(EmeraldDark.copy(alpha = 0.55f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "التنبيهات",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            // Center Brand Title: ذِكري + tagline
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "ذِكْري",
+                    fontSize = 54.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = EmeraldDark,
+                    lineHeight = 64.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.width(34.dp),
+                        thickness = 1.dp,
+                        color = EmeraldDark.copy(alpha = 0.55f)
                     )
                     Text(
-                        text = "رفيقك اليومي للقرآن الكريم والأذكار والتسبيح — يعمل بالكامل دون إنترنت",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.92f)
+                        text = "رفيقك في طريق الطمأنينة",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = EmeraldDark,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(6.dp))
-                    Button(
-                        onClick = { onContinueReading(lastPage) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SoftGold,
-                            contentColor = Color(0xFF1F1604)
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Default.Bookmark, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("متابعة القراءة: سورة $lastSurahName — صفحة $lastPage", fontWeight = FontWeight.Bold)
-                    }
+                    HorizontalDivider(
+                        modifier = Modifier.width(34.dp),
+                        thickness = 1.dp,
+                        color = EmeraldDark.copy(alpha = 0.55f)
+                    )
+                }
+            }
+
+            // Overlapping Cream-Gold Verse Banner
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .shadow(6.dp, RoundedCornerShape(22.dp))
+                    .clickable { onContinueReading(lastPage) },
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFFFFF8E8),
+                border = BorderStroke(1.2.dp, SoftGold.copy(alpha = 0.75f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "﴿ أَلَا بِذِكۡرِ ٱللَّهِ تَطۡمَئِنُّ ٱلۡقُلُوبُ ﴾",
+                        fontFamily = HafsFontFamily,
+                        fontSize = 22.sp,
+                        color = Color(0xFF2B2112),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "[ الرعد: 28 ]  •  متابعة القراءة: $lastSurahName (ص $lastPage)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF6B5630),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
 
-        item {
-            Text(
-                text = "الوصول السريع",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        Spacer(Modifier.height(16.dp))
 
-        item {
+        // 2. 2x3 Colorful Gradient Feature Grid (matching exact reference layout)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Row 1 (RTL: Tasbih on right, Mushaf on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                QuickActionCard(
-                    title = "المصحف الشريف",
-                    subtitle = "114 سورة • 604 صفحة",
-                    icon = Icons.Default.MenuBook,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpenQuran
-                )
-                QuickActionCard(
-                    title = "السبحة الإلكترونية",
-                    subtitle = "اليوم: $todayTasbih تسبيحة",
+                HomeGradientCard(
+                    title = "عداد التسبيح",
+                    subtitle = if (todayTasbih > 0) "اليوم: $todayTasbih تسبيحة" else "سبح .. واحصل على الأجر",
                     icon = Icons.Default.TouchApp,
+                    colors = listOf(Color(0xFF4F8B5F), Color(0xFF1F5733)),
+                    contentColor = Color.White,
+                    iconTint = Color(0xFFF6D97A),
                     modifier = Modifier.weight(1f),
                     onClick = onOpenTasbih
                 )
+                HomeGradientCard(
+                    title = "المصحف الكريم",
+                    subtitle = "قراءة وتفسير ومعاني",
+                    icon = Icons.Default.MenuBook,
+                    colors = listOf(Color(0xFFF3E2BC), Color(0xFFD6B36D)),
+                    contentColor = Color(0xFF281E0E),
+                    iconTint = Color(0xFF4A3310),
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenQuran
+                )
             }
-        }
 
-        item {
+            // Row 2 (RTL: Varied Duas on right, Morning/Evening Adhkar on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                QuickActionCard(
+                HomeGradientCard(
+                    title = "أدعية متنوعة",
+                    subtitle = "في كل وقت وحين",
+                    icon = Icons.Default.VolunteerActivism,
+                    colors = listOf(Color(0xFF5CB1CC), Color(0xFF1E7494)),
+                    contentColor = Color.White,
+                    iconTint = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenAdhkarTab
+                )
+                HomeGradientCard(
                     title = "أذكار الصباح والمساء",
-                    subtitle = "حصن المسلم",
-                    icon = Icons.Default.WbSunny,
+                    subtitle = "ابدأ يومك بذكر الله",
+                    icon = Icons.Default.EditNote,
+                    colors = listOf(Color(0xFF9387D4), Color(0xFF5A4E94)),
+                    contentColor = Color.White,
+                    iconTint = Color.White,
                     modifier = Modifier.weight(1f),
                     onClick = { onOpenAdhkarCategory(27) }
                 )
-                QuickActionCard(
-                    title = "أذكار النوم",
-                    subtitle = "قبل المنام",
-                    icon = Icons.Default.NightsStay,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onOpenAdhkarCategory(28) }
-                )
             }
-        }
 
-        item {
+            // Row 3 (RTL: Favorites on right, Stories on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                QuickActionCard(
-                    title = "أذكار بعد الصلاة",
-                    subtitle = "عقب السلام",
-                    icon = Icons.Default.Mosque,
+                HomeGradientCard(
+                    title = "المفضلة",
+                    subtitle = "أذكارك المفضلة دائماً",
+                    icon = Icons.Default.Star,
+                    colors = listOf(Color(0xFFF6CC80), Color(0xFFC99136)),
+                    contentColor = Color(0xFF2B1F09),
+                    iconTint = Color(0xFF7A5311),
                     modifier = Modifier.weight(1f),
-                    onClick = { onOpenAdhkarCategory(25) }
+                    onClick = onOpenFavorites
                 )
-                QuickActionCard(
+                HomeGradientCard(
                     title = "الحكايات الإسلامية",
-                    subtitle = "قصص موثقة بالمصادر",
-                    icon = Icons.Default.AutoStories,
+                    subtitle = "قصص موثقة وعبر",
+                    icon = Icons.Default.Mosque,
+                    colors = listOf(Color(0xFF88B884), Color(0xFF447C4A)),
+                    contentColor = Color.White,
+                    iconTint = Color(0xFFFFF8E8),
                     modifier = Modifier.weight(1f),
                     onClick = onOpenStories
                 )
             }
         }
 
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(18.dp)
+        Spacer(Modifier.height(14.dp))
+
+        // 3. Bottom Inspirational Pill
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFFF5EFE3),
+            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "﴿أَلَا بِذِكۡرِ ٱللَّهِ تَطۡمَئِنُّ ٱلۡقُلُوبُ﴾",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "سورة الرعد — الآية 28",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    tint = EmeraldDark,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "كل ذكر لله .. يقرّبك من الله",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = EmeraldDark
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.Spa,
+                    contentDescription = null,
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun QuickActionCard(
+private fun HomeGradientCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
+    colors: List<Color>,
+    contentColor: Color,
+    iconTint: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Box(
+        modifier = modifier
+            .height(126.dp)
+            .shadow(4.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(colors))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                tint = iconTint,
+                modifier = Modifier.size(34.dp)
             )
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
             Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = contentColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor.copy(alpha = 0.88f),
+                textAlign = TextAlign.Center,
+                maxLines = 1
             )
         }
     }

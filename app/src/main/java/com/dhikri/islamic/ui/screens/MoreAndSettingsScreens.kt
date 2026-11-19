@@ -1,9 +1,14 @@
 package com.dhikri.islamic.ui.screens
 
+import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,44 +19,110 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dhikri.islamic.ui.theme.EmeraldPrimary
+import com.dhikri.islamic.ui.theme.ReadingThemes
+import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
+    onOpenKhatmah: () -> Unit,
+    onOpenRecitations: () -> Unit,
+    onOpenRuqyah: () -> Unit,
+    onOpenAsmaUlHusna: () -> Unit,
     onOpenTasbih: () -> Unit,
+    onOpenHisnAlMuslim: () -> Unit,
+    onOpenQibla: () -> Unit,
+    onOpenHijri: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSources: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Scaffold(topBar = { TopAppBar(title = { Text("المزيد") }) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Group 1: العبادات
+            item { GroupHeader("العبادات") }
+            item { MoreRow("ختمة القرآن الكريم", "إنشاء خطة ختمة ومتابعة التقدم اليومي", Icons.Default.AutoAwesome, onOpenKhatmah) }
+            item { MoreRow("الاستماع للقرآن الكريم", "تلاوات القراء مع إمكانية التحميل أوفلاين", Icons.Default.Headphones, onOpenRecitations) }
+            item { MoreRow("الرُّقية الشرعية", "آيات وأدعية موثقة من القرآن والصحيحين", Icons.Default.HealthAndSafety, onOpenRuqyah) }
+            item { MoreRow("أسماء الله الحسنى", "الـ 99 اسماً ومعانيها الموثقة أوفلاين", Icons.Default.Stars, onOpenAsmaUlHusna) }
+            item { MoreRow("حصن المسلم والأذكار", "134 باباً مصنفاً من الأذكار والأدعية", Icons.Default.MenuBook, onOpenHisnAlMuslim) }
             item { MoreRow("السبحة الإلكترونية", "عداد تسبيح، أهداف مخصصة، وإحصائيات يومية", Icons.Default.TouchApp, onOpenTasbih) }
-            item { MoreRow("مركز التنزيلات وإدارة المحتوى", "تنزيل التفاسير ومعاني الكلمات وإدارة المساحة", Icons.Default.CloudDownload, onOpenDownloads) }
+
+            // Group 2: الأدوات الإسلامية
+            item { Spacer(Modifier.height(4.dp)); GroupHeader("الأدوات الإسلامية") }
+            item { MoreRow("اتجاه القبلة", "بوصلة القبلة وحساب الزاوية دون إنترنت", Icons.Default.Explore, onOpenQibla) }
+            item { MoreRow("التقويم الهجري", "تاريخ أم القرى اليومي والأشهر الهجرية", Icons.Default.CalendarMonth, onOpenHijri) }
+
+            // Group 3: التخصيص
+            item { Spacer(Modifier.height(4.dp)); GroupHeader("التخصيص وإدارة المحتوى") }
+            item { MoreRow("مركز التنزيلات وإدارة المساحة", "حالة الحزم (محمّل / غير محمّل) وحجم الملفات", Icons.Default.CloudDownload, onOpenDownloads) }
             item { MoreRow("المفضلة والعلامات", "الآيات والأذكار والقصص المحفوظة", Icons.Default.Favorite, onOpenFavorites) }
-            item { MoreRow("الإعدادات", "الوضع الليلي، حجم الخط، الاهتزاز، الصوت، والتنبيهات", Icons.Default.Settings, onOpenSettings) }
-            item { MoreRow("المصادر والتراخيص والخصوصية", "Tanzil وQuranEnc وحصن المسلم وسياسة الخصوصية", Icons.Default.VerifiedUser, onOpenSources) }
+            item { MoreRow("الإعدادات والتنبيهات", "ألوان القراءة لراحة العين، الخط، والوضع الليلي", Icons.Default.Settings, onOpenSettings) }
+
+            // Group 4: التطبيق
+            item { Spacer(Modifier.height(4.dp)); GroupHeader("التطبيق") }
+            item {
+                MoreRow("مشاركة تطبيق ذِكري", "انشر الخير وشارك التطبيق مع أحبابك", Icons.Default.Share) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, "تطبيق ذِكري | DHIKRI — المصحف الشريف، التفسير، الأذكار، الختمة، والسبحة دون إنترنت.")
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "مشاركة تطبيق ذِكري"))
+                }
+            }
+            item { MoreRow("حول التطبيق والمصادر والتراخيص", "Tanzil وQuranEnc وحصن المسلم وسياسة الخصوصية", Icons.Default.VerifiedUser, onOpenSources) }
         }
     }
 }
 
 @Composable
+private fun GroupHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+    )
+}
+
+@Composable
 private fun MoreRow(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(16.dp)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
-            Column {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(0.6.dp, SoftGold.copy(alpha = 0.35f))
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
+            }
+            Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -60,6 +131,8 @@ private fun MoreRow(title: String, subtitle: String, icon: ImageVector, onClick:
 @Composable
 fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
     val packages by viewModel.downloadPackages.collectAsState()
+    val installedCount = packages.count { it.status == "INSTALLED" }
+    val installedMb = packages.filter { it.status == "INSTALLED" }.sumOf { it.sizeBytes } / 1_048_576.0
 
     Scaffold(
         topBar = {
@@ -78,22 +151,59 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("ملخص المحتوى المحمّل دون إنترنت", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("الحزم المحمّلة: $installedCount من ${packages.size} • المساحة المستخدمة: ${String.format("%.2f MB", installedMb)}")
+                    }
+                }
+            }
+
             items(packages, key = { it.packageKey }) { pkg ->
                 val sizeMb = String.format("%.2f MB", pkg.sizeBytes / 1_048_576.0)
+                val statusArabic = when (pkg.status) {
+                    "INSTALLED" -> "محمّل ✅"
+                    "DOWNLOADING" -> "جاري التنزيل (${pkg.progressPercent}%)"
+                    "PAUSED" -> "متوقف مؤقتاً"
+                    "FAILED" -> "فشل التنزيل"
+                    else -> "غير محمّل ⬇️"
+                }
                 Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(pkg.titleArabic, style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(pkg.titleArabic, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (pkg.status == "INSTALLED") EmeraldPrimary.copy(alpha = 0.14f) else SoftGold.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    statusArabic,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (pkg.status == "INSTALLED") EmeraldPrimary else Color(0xFF7A5311),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                         Text(pkg.descriptionArabic, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("الإصدار: ${pkg.version} • الحجم: $sizeMb • الحالة: ${pkg.status}", style = MaterialTheme.typography.labelMedium)
+                        Text("الإصدار: ${pkg.version} • الحجم: $sizeMb", style = MaterialTheme.typography.labelMedium)
                         if (pkg.sha256Checksum.isNotBlank() && pkg.sha256Checksum != "CORE_BUNDLED") {
-                            Text("SHA-256: ${pkg.sha256Checksum.take(18)}...", style = MaterialTheme.typography.labelMedium)
+                            Text("التحقق SHA-256: ${pkg.sha256Checksum.take(18)}...", style = MaterialTheme.typography.labelMedium)
                         }
                         if (pkg.status == "DOWNLOADING") {
                             LinearProgressIndicator(
                                 progress = { pkg.progressPercent / 100f },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("${pkg.progressPercent}%", style = MaterialTheme.typography.labelMedium)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (pkg.isCore == 1) {
@@ -198,7 +308,36 @@ fun SettingsScreen(
                 SettingSwitch("الوضع الليلي للتطبيق", settings.darkMode) { viewModel.setDarkMode(it) }
             }
             item {
-                SettingSwitch("وضع القراءة الليلية في المصحف", settings.nightReadingMode) { viewModel.setNightReadingMode(it) }
+                Card(shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("لون القراءة في المصحف (لراحة العين)", fontWeight = FontWeight.SemiBold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(ReadingThemes, key = { it.key }) { theme ->
+                                val selected = settings.readingThemeKey == theme.key
+                                Surface(
+                                    modifier = Modifier.clickable { viewModel.setReadingTheme(theme.key) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = theme.background,
+                                    border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) theme.accentColor else theme.dividerColor)
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            Modifier
+                                                .size(16.dp)
+                                                .clip(CircleShape)
+                                                .background(theme.accentColor)
+                                        )
+                                        Text(theme.labelArabic, color = theme.textColor, style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             item {
                 Card(shape = RoundedCornerShape(14.dp)) {
@@ -212,21 +351,11 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingSwitch("الاهتزاز في السبحة الإلكترونية", settings.vibrationEnabled) { viewModel.setVibrationEnabled(it) }
-            }
-            item {
-                SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) }
-            }
-            item {
-                SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) }
-            }
-            item {
-                MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads)
-            }
-            item {
-                MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v1.0.0", Icons.Default.Info, onOpenSources)
-            }
+            item { SettingSwitch("الاهتزاز في السبحة الإلكترونية", settings.vibrationEnabled) { viewModel.setVibrationEnabled(it) } }
+            item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
+            item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
+            item { MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads) }
+            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v1.0.0", Icons.Default.Info, onOpenSources) }
         }
     }
 }
@@ -286,7 +415,7 @@ fun SourcesAndLicensesScreen(onBack: () -> Unit) {
             item {
                 SourceCard(
                     title = "4. سياسة الخصوصية",
-                    body = "تطبيق ذِكري يعمل دون إنترنت (Offline-First)، ولا يجمع أي بيانات شخصية، ولا يرسل أي تتبع أو تحليلات خارجية، ولا يحتوي على إعلانات. جميع العلامات المرجعية والمفضلة وسجل التسبيح تُحفظ محلياً على جهازك فقط."
+                    body = "تطبيق ذِكري يعمل دون إنترنت (Offline-First)، ولا يجمع أي بيانات شخصية، ولا يرسل أي تتبع أو تحليلات خارجية، ولا يحتوي على إعلانات. جميع العلامات المرجعية والمفضلة وسجل التسبيح والختمة تُحفظ محلياً على جهازك فقط."
                 )
             }
         }

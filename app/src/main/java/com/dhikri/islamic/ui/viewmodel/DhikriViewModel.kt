@@ -146,11 +146,15 @@ class DhikriViewModel(
     // Settings
     fun setDarkMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setDarkMode(enabled) }
     fun setNightReadingMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setNightReadingMode(enabled) }
+    fun setReadingTheme(themeKey: String) = viewModelScope.launch { settingsRepository.setReadingTheme(themeKey) }
     fun setMushafFontSize(sizeSp: Float) = viewModelScope.launch { settingsRepository.setMushafFontSize(sizeSp) }
     fun setVibrationEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setVibrationEnabled(enabled) }
     fun setSoundEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSoundEnabled(enabled) }
     fun setNotificationsEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setNotificationsEnabled(enabled) }
     fun setLastTasbihPresetId(id: Int) = viewModelScope.launch { settingsRepository.setLastTasbihPresetId(id) }
+    fun startKhatmah(days: Int) = viewModelScope.launch { settingsRepository.startKhatmah(days, 1) }
+    fun updateKhatmahPage(page: Int) = viewModelScope.launch { settingsRepository.updateKhatmahPage(page) }
+    fun resetKhatmah() = viewModelScope.launch { settingsRepository.resetKhatmah() }
 
     class Factory(
         private val repository: DhikriRepository,

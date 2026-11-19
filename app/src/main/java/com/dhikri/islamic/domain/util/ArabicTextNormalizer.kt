@@ -13,7 +13,7 @@ object ArabicTextNormalizer {
             .replace("ة", "ه")
             .replace("ؤ", "و")
             .replace("ئ", "ي")
-            .replace(multiSpaceRegex, " ")
+    private val multiSpaceRegex = Regex("\\s+")
             .trim()
     }
 }
