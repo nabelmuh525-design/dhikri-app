@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +59,9 @@ fun HomeScreen(
     val surahs by viewModel.surahs.collectAsState()
     val todayTasbih by viewModel.todayTasbihTotal.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val availableUpdate by viewModel.availableUpdate.collectAsState()
+    val updateProgress by viewModel.updateProgress.collectAsState()
+    val context = LocalContext.current
 
     val lastSurahName = surahs.firstOrNull { it.id == (lastRead?.surahId ?: 1) }?.nameArabic ?: "الفاتحة"
     val lastPage = lastRead?.pageNumber ?: 1
@@ -251,6 +255,62 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(12.dp))
+
+        // In-App Update Notification Banner (disappears automatically once updated)
+        availableUpdate?.let { update ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 10.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFFF4D6),
+                border = BorderStroke(1.5.dp, SoftGold),
+                shadowElevation = 4.dp
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = EmeraldDark)
+                            Column {
+                                Text(
+                                    "تحديث جديد متاح (v${update.latestVersion})",
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldDark
+                                )
+                                Text(
+                                    "اضغط للتحديث المباشر دون حذف بياناتك",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color(0xFF5A4519)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { viewModel.installAppUpdate(context) },
+                            enabled = updateProgress == null,
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldDark, contentColor = SoftGold)
+                        ) {
+                            Text(if (updateProgress != null) "${updateProgress}%" else "تحديث الآن")
+                        }
+                    }
+                    updateProgress?.let { pct ->
+                        LinearProgressIndicator(
+                            progress = { pct / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = EmeraldDark
+                        )
+                    }
+                }
+            }
+        }
 
         // Dedicated Prominent Continue Reading Card (منفصلة وواضحة)
         Surface(

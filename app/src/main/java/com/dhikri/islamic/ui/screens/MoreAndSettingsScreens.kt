@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.dhikri.islamic.ui.theme.EmeraldPrimary
 import com.dhikri.islamic.ui.theme.ReadingThemes
 import com.dhikri.islamic.ui.theme.SoftGold
+import com.dhikri.islamic.BuildConfig
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -307,6 +308,10 @@ fun SettingsScreen(
     onOpenSources: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val availableUpdate by viewModel.availableUpdate.collectAsState()
+    val updateProgress by viewModel.updateProgress.collectAsState()
+    val updateStatusMsg by viewModel.updateStatusMsg.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -376,7 +381,33 @@ fun SettingsScreen(
             item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
             item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
             item { MoreRow("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads) }
-            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.8.0", Icons.Default.Info, onOpenSources) }
+            item {
+                Card(shape = RoundedCornerShape(16.dp), border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.5f))) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("تحديث تطبيق ذِكري (الإصدار الحالي: v${BuildConfig.VERSION_NAME})", fontWeight = FontWeight.Bold)
+                        updateStatusMsg?.let { msg ->
+                            Text(msg, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        updateProgress?.let { pct ->
+                            LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth())
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { viewModel.checkForAppUpdate(silent = false) }) {
+                                Text("التحقق من التحديثات")
+                            }
+                            if (availableUpdate != null) {
+                                Button(
+                                    onClick = { viewModel.installAppUpdate(context) },
+                                    enabled = updateProgress == null
+                                ) {
+                                    Text("تحديث إلى v${availableUpdate?.latestVersion}")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item { MoreRow("المصادر والتراخيص وسياسة الخصوصية", "حول تطبيق ذِكري v2.9.0", Icons.Default.Info, onOpenSources) }
         }
     }
 }

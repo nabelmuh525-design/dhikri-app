@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.dhikri.islamic.data.local.entity.*
 import com.dhikri.islamic.data.preferences.UserSettings
 import com.dhikri.islamic.data.preferences.UserSettingsRepository
+import android.content.Context
 import com.dhikri.islamic.data.repository.DhikriRepository
+import com.dhikri.islamic.data.update.AppUpdateInfo
+import com.dhikri.islamic.data.update.AppUpdater
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -68,6 +71,50 @@ class DhikriViewModel(
 
     private val _tafsirSearchResults = MutableStateFlow<List<TafsirEntryEntity>>(emptyList())
     val tafsirSearchResults: StateFlow<List<TafsirEntryEntity>> = _tafsirSearchResults.asStateFlow()
+
+    private val _availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
+    val availableUpdate: StateFlow<AppUpdateInfo?> = _availableUpdate.asStateFlow()
+
+    private val _updateProgress = MutableStateFlow<Int?>(null)
+    val updateProgress: StateFlow<Int?> = _updateProgress.asStateFlow()
+
+    private val _updateStatusMsg = MutableStateFlow<String?>(null)
+    val updateStatusMsg: StateFlow<String?> = _updateStatusMsg.asStateFlow()
+
+    init {
+        checkForAppUpdate(silent = true)
+    }
+
+    fun checkForAppUpdate(silent: Boolean = false) {
+        viewModelScope.launch {
+            if (!silent) _updateStatusMsg.value = "جاري التحقق من وجود تحديثات..."
+            val info = AppUpdater.checkForUpdate()
+            _availableUpdate.value = info
+            if (!silent) {
+                _updateStatusMsg.value = if (info != null) {
+                    "يتوفر تحديث جديد (${info.latestVersion})"
+                } else {
+                    "أنت تستخدم أحدث إصدار من تطبيق ذِكري"
+                }
+            }
+        }
+    }
+
+    fun installAppUpdate(context: Context) {
+        val info = _availableUpdate.value ?: return
+        if (_updateProgress.value != null) return
+        viewModelScope.launch {
+            _updateProgress.value = 0
+            _updateStatusMsg.value = "جاري تحميل التحديث (${info.latestVersion})..."
+            val res = AppUpdater.downloadAndInstall(context, info.apkUrl) { pct ->
+                _updateProgress.value = pct
+            }
+            _updateProgress.value = null
+            if (res.isFailure) {
+                _updateStatusMsg.value = "تعذّر تحميل التحديث — تأكد من الاتصال بالإنترنت"
+            }
+        }
+    }
 
     fun observePageAyahs(pageNumber: Int): Flow<List<AyahEntity>> =
         repository.observeAyahsByPage(pageNumber.coerceIn(1, 604))
