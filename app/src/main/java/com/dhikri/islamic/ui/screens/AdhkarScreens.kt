@@ -276,6 +276,13 @@ fun AdhkarDetailScreen(
 
     val progressMap = remember { mutableStateMapOf<Int, Int>() }
     var adhkarFontSizeSp by remember { mutableFloatStateOf(19f) }
+    var isFullScreen by remember { mutableStateOf(false) }
+    val currentView = LocalView.current
+    DisposableEffect(currentView) {
+        currentView.keepScreenOn = true
+        onDispose { currentView.keepScreenOn = false }
+    }
+    BackHandler(enabled = isFullScreen) { isFullScreen = false }
     val completedCount = itemsList.count { (progressMap[it.id] ?: 0) >= it.repeatCount }
     val context = LocalContext.current
 
