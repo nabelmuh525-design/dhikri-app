@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,14 +31,7 @@ fun QuranSearchScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("البحث في القرآن والتفسير") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "البحث في القرآن والتفسير", onBack = onBack)
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

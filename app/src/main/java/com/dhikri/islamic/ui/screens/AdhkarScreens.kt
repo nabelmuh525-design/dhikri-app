@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -63,17 +65,9 @@ fun AdhkarListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("الأذكار والأدعية", fontWeight = FontWeight.Bold)
-                        Text(
-                            "حصن المسلم والأدعية القرآنية — يعمل دون إنترنت",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            DhikriCompactTopBar(
+                title = "الأذكار والأدعية",
+                subtitle = "حصن المسلم والأدعية القرآنية — يعمل دون إنترنت"
             )
         }
     ) { padding ->
@@ -284,24 +278,10 @@ fun AdhkarDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(screenTitle, maxLines = 1, fontWeight = FontWeight.Bold)
-                        if (itemsList.isNotEmpty()) {
-                            Text(
-                                "أتممت $completedCount من ${itemsList.size}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                },
+            DhikriCompactTopBar(
+                title = screenTitle,
+                subtitle = if (itemsList.isNotEmpty()) "أتممت $completedCount من ${itemsList.size}" else null,
+                onBack = onBack,
                 actions = {
                     IconButton(onClick = { adhkarFontSizeSp = (adhkarFontSizeSp - 2f).coerceAtLeast(15f) }) {
                         Icon(Icons.Default.TextDecrease, contentDescription = "تصغير الخط")

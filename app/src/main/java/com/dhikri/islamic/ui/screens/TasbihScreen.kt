@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -116,16 +118,12 @@ fun TasbihScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text("عداد التسبيح", fontWeight = FontWeight.Bold, color = EmeraldDark) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = EmeraldDark)
-                        }
-                    },
+                DhikriCompactTopBar(
+                    title = "عداد التسبيح",
+                    onBack = onBack,
                     actions = {
-                        IconButton(onClick = { viewModel.setVibrationEnabled(!settings.vibrationEnabled) }) {
+                        IconButton(onClick = { viewModel.setVibrationEnabled(!settings.vibrationEnabled) }
+                ) {
                             Icon(
                                 if (settings.vibrationEnabled) Icons.Default.Vibration else Icons.Default.DoNotDisturbOn,
                                 contentDescription = "الاهتزاز",

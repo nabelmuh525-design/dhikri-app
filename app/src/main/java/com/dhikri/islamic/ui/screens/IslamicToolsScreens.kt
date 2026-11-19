@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
@@ -79,14 +81,7 @@ fun KhatmahScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("ختمة القرآن الكريم") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "ختمة القرآن الكريم", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -184,13 +179,9 @@ fun RuqyahScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("الرُّقية الشرعية الموثقة") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                },
+            DhikriCompactTopBar(
+                title = "الرُّقية الشرعية الموثقة",
+                onBack = onBack,
                 actions = {
                     IconButton(onClick = { progressMap.clear() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "تصفير")
@@ -260,14 +251,7 @@ fun AsmaUlHusnaScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("أسماء الله الحسنى (99)") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "أسماء الله الحسنى (99)", onBack = onBack)
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -297,7 +281,7 @@ fun AsmaUlHusnaScreen(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QiblaScreen(onBack: () -> Unit) {
+fun QiblaScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     var selectedCity by remember { mutableStateOf(IslamicToolsData.qiblaCities.first()) }
     var azimuthDeg by remember { mutableFloatStateOf(0f) }
@@ -359,15 +343,7 @@ fun QiblaScreen(onBack: () -> Unit) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text("اتجاه القبلة", fontWeight = FontWeight.Bold, color = EmeraldDark) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = EmeraldDark)
-                        }
-                    }
-                )
+                DhikriCompactTopBar(title = "اتجاه القبلة", onBack = onBack)
             }
         ) { padding ->
             Column(
@@ -556,14 +532,7 @@ fun HijriCalendarScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("التقويم والمناسبات الإسلامية") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "التقويم والمناسبات الإسلامية", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -789,13 +758,9 @@ fun AudioRecitationsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("الاستماع للقرآن الكريم") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                },
+            DhikriCompactTopBar(
+                title = "الاستماع للقرآن الكريم",
+                onBack = onBack,
                 actions = {
                     if (playingSurahId != null) {
                         IconButton(onClick = {

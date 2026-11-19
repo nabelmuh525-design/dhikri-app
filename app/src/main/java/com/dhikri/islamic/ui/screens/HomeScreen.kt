@@ -50,7 +50,7 @@ fun HomeScreen(
     onOpenAdhkarTab: () -> Unit,
     onOpenAdhkarCategory: (Int) -> Unit,
     onOpenTasbih: () -> Unit,
-    onOpenStories: () -> Unit,
+    onOpenQibla: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenMore: () -> Unit,
     onOpenHijri: () -> Unit
@@ -87,7 +87,7 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(315.dp)
+                .height(335.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.home_header_bg),
@@ -95,13 +95,13 @@ fun HomeScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(265.dp)
+                    .height(285.dp)
             )
             // Soft warm gradient veil for crisp logo readability
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(265.dp)
+                    .height(285.dp)
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
@@ -117,7 +117,8 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .statusBarsPadding()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -184,7 +185,8 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 48.dp),
+                    .statusBarsPadding()
+                    .padding(top = 56.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -224,8 +226,7 @@ fun HomeScreen(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp)
-                    .shadow(6.dp, RoundedCornerShape(22.dp))
-                    .clickable { onContinueReading(lastPage) },
+                    .shadow(6.dp, RoundedCornerShape(22.dp)),
                 shape = RoundedCornerShape(22.dp),
                 color = Color(0xFFFFF8E8),
                 border = BorderStroke(1.2.dp, SoftGold.copy(alpha = 0.75f))
@@ -242,12 +243,6 @@ fun HomeScreen(
                         fontFamily = HafsFontFamily,
                         fontSize = 22.sp,
                         color = Color(0xFF2B2112),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "[ الرعد: 28 ]  •  متابعة القراءة: $lastSurahName (ص $lastPage)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF6B5630),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -456,14 +451,14 @@ fun HomeScreen(
                     onClick = onOpenFavorites
                 )
                 HomeGradientCard(
-                    title = "الحكايات الإسلامية",
-                    subtitle = "قصص موثقة وعبر",
-                    icon = Icons.Default.Mosque,
-                    colors = listOf(Color(0xFF88B884), Color(0xFF447C4A)),
+                    title = "اتجاه القبلة",
+                    subtitle = "بوصلة الكعبة بدقة",
+                    icon = Icons.Default.Explore,
+                    colors = listOf(Color(0xFF28588A), Color(0xFF0E294D)),
                     contentColor = Color.White,
-                    iconTint = Color(0xFFFFF8E8),
+                    iconTint = SoftGold,
                     modifier = Modifier.weight(1f),
-                    onClick = onOpenStories
+                    onClick = onOpenQibla
                 )
             }
         }

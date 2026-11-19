@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -158,33 +160,13 @@ fun MushafReaderScreen(
     Scaffold(
         containerColor = palette.background,
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = palette.surface,
-                    titleContentColor = palette.textColor,
-                    navigationIconContentColor = palette.textColor,
-                    actionIconContentColor = palette.accentColor
-                ),
-                title = {
-                    Column {
-                        Text(
-                            text = headerSurah?.let { "سورة ${it.nameArabic}" } ?: "المصحف الشريف",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = palette.textColor.copy(alpha = 0.72f)
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                },
+            DhikriCompactTopBar(
+                title = headerSurah?.let { "سورة ${it.nameArabic}" } ?: "المصحف الشريف",
+                subtitle = "صفحة $currentPage / 604 • الجزء ${firstAyah?.juzNumber ?: 1} • الحزب ${firstAyah?.hizbNumber ?: 1}",
+                onBack = onBack,
                 actions = {
-                    IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp - 2f) }) {
+                    IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp - 2f) }
+            ) {
                         Icon(Icons.Default.TextDecrease, contentDescription = "تصغير الخط")
                     }
                     IconButton(onClick = { viewModel.setMushafFontSize(settings.mushafFontSizeSp + 2f) }) {

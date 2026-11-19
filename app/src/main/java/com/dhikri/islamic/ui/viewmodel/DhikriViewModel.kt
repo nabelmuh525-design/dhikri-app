@@ -100,6 +100,18 @@ class DhikriViewModel(
         }
     }
 
+    fun triggerAutoUpdateFromNotification(context: Context) {
+        if (_updateProgress.value != null) return
+        viewModelScope.launch {
+            val info = _availableUpdate.value ?: AppUpdater.checkForUpdate().also {
+                _availableUpdate.value = it
+            }
+            if (info != null) {
+                installAppUpdate(context)
+            }
+        }
+    }
+
     fun installAppUpdate(context: Context) {
         val info = _availableUpdate.value ?: return
         if (_updateProgress.value != null) return

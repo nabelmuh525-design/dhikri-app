@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -55,19 +57,7 @@ fun MoreScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    navigationIconContentColor = SoftGold
-                ),
-                title = { Text("القائمة والأدوات", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "القائمة والأدوات", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -268,19 +258,7 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    navigationIconContentColor = SoftGold
-                ),
-                title = { Text("مركز التنزيلات", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "مركز التنزيلات", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -320,13 +298,13 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
                             Text(pkg.titleArabic, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (pkg.status == "INSTALLED") EmeraldPrimary.copy(alpha = 0.14f) else SoftGold.copy(alpha = 0.2f)
+                                color = if (pkg.status == "INSTALLED") Color(0xFF1B5E20).copy(alpha = 0.22f) else SoftGold.copy(alpha = 0.24f)
                             ) {
                                 Text(
                                     statusArabic,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (pkg.status == "INSTALLED") EmeraldPrimary else Color(0xFF7A5311),
+                                    color = if (pkg.status == "INSTALLED") Color(0xFF4CAF50) else SoftGold,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
@@ -382,29 +360,14 @@ fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
 fun FavoritesScreen(
     viewModel: DhikriViewModel,
     onBack: () -> Unit,
-    onOpenPage: (Int) -> Unit,
-    onOpenStory: (Int) -> Unit
+    onOpenPage: (Int) -> Unit
 ) {
     val favAdhkar by viewModel.favoriteAdhkar.collectAsState()
-    val stories by viewModel.stories.collectAsState()
-    val favStories = stories.filter { it.isFavorite == 1 }
     val bookmarks by viewModel.bookmarks.collectAsState()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    navigationIconContentColor = SoftGold
-                ),
-                title = { Text("المفضلة والعلامات", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "المفضلة والعلامات", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -422,10 +385,7 @@ fun FavoritesScreen(
             items(favAdhkar, key = { it.id }) { d ->
                 Card(Modifier.fillMaxWidth()) { Text(d.textArabic.take(140), Modifier.padding(14.dp)) }
             }
-            item { Text("القصص المفضلة (${favStories.size})", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-            items(favStories, key = { it.id }) { s ->
-                Card(Modifier.fillMaxWidth().clickable { onOpenStory(s.id) }) { Text(s.titleArabic, Modifier.padding(14.dp)) }
-            }
+
         }
     }
 }
@@ -446,19 +406,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    navigationIconContentColor = SoftGold
-                ),
-                title = { Text("الإعدادات", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "الإعدادات", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(
@@ -612,19 +560,7 @@ private fun SettingSwitch(title: String, checked: Boolean, onCheckedChange: (Boo
 fun SourcesAndLicensesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    navigationIconContentColor = SoftGold
-                ),
-                title = { Text("المصادر والتراخيص والخصوصية", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                }
-            )
+            DhikriCompactTopBar(title = "المصادر والتراخيص والخصوصية", onBack = onBack)
         }
     ) { padding ->
         LazyColumn(

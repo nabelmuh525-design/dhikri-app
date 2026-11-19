@@ -1,5 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,19 +50,14 @@ fun QuranIndexScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = EmeraldDark,
-                    titleContentColor = SoftGold,
-                    actionIconContentColor = SoftGold
-                ),
-                title = { Text("القرآن الكريم", fontWeight = FontWeight.Bold) },
+            DhikriCompactTopBar(
+                title = "القرآن الكريم",
                 actions = {
                     TextButton(onClick = { showJumpDialog = true }) {
                         Text("انتقال لصفحة", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                     IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "بحث في القرآن")
+                        Icon(Icons.Default.Search, contentDescription = "بحث في القرآن", tint = SoftGold)
                     }
                 }
             )
