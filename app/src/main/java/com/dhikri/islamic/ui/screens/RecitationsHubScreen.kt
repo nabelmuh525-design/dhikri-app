@@ -38,6 +38,7 @@ import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -47,23 +48,250 @@ private data class QuranReciterCard(
     val id: String,
     val nameArabic: String,
     val styleArabic: String,
-    val searchKeyword: String,
-    val fallbackBaseUrl: String,
+    val requiredArabicTokens: List<String>,
+    val quranicAudioPathHint: String,
+    val quranicAudioDirectUrl: String,
+    val mp3QuranFallbackUrl: String,
     val gradient: List<Color>
 )
 
 private val recitersCatalog = listOf(
-    QuranReciterCard("ayyub", "محمد أيوب", "مرتّل — الحرم النبوي", "محمد أيوب", "https://server8.mp3quran.net/ayyub/", listOf(Color(0xFF1A437A), Color(0xFF0B1F3B))),
-    QuranReciterCard("ajm", "أحمد بن علي العجمي", "تلاوة خاشعة مؤثرة", "العجمي", "https://server10.mp3quran.net/ajm/", listOf(Color(0xFF2E6B4F), Color(0xFF133B28))),
-    QuranReciterCard("basit", "عبد الباسط عبد الصمد", "مرتّل — صوت ذهبي", "عبد الباسط", "https://server7.mp3quran.net/basit/", listOf(Color(0xFF8C6B1F), Color(0xFF4A360B))),
-    QuranReciterCard("husr", "محمود خليل الحصري", "المصحف المعلّم والمرتّل", "الحصري", "https://server13.mp3quran.net/husr/", listOf(Color(0xFF1F6A8A), Color(0xFF0E3E56))),
-    QuranReciterCard("minsh", "محمد صديق المنشاوي", "تلاوة روحانية خالدة", "المنشاوي", "https://server10.mp3quran.net/minsh/", listOf(Color(0xFF564494), Color(0xFF2B2054))),
-    QuranReciterCard("maher", "ماهر المعيقلي", "إمام الحرم المكي", "المعيقلي", "https://server12.mp3quran.net/maher/", listOf(Color(0xFF215B63), Color(0xFF0D2E33))),
-    QuranReciterCard("yasser", "ياسر الدوسري", "إمام الحرم المكي", "الدوسري", "https://server11.mp3quran.net/yasser/", listOf(Color(0xFF7B435B), Color(0xFF411D2D))),
-    QuranReciterCard("s_gmd", "سعد الغامدي", "تلاوة هادئة ومريحة", "الغامدي", "https://server7.mp3quran.net/s_gmd/", listOf(Color(0xFF3E6947), Color(0xFF1B3621))),
-    QuranReciterCard("shur", "سعود الشريم", "إمام الحرم المكي", "الشريم", "https://server7.mp3quran.net/shur/", listOf(Color(0xFF274C77), Color(0xFF102540))),
-    QuranReciterCard("frs_a", "فارس عباد", "تلاوة نقية خاشعة", "فارس عباد", "https://server8.mp3quran.net/frs_a/", listOf(Color(0xFF7A5622), Color(0xFF3E290D)))
+    QuranReciterCard(
+        id = "ayyub",
+        nameArabic = "محمد أيوب",
+        styleArabic = "مرتّل — الحرم النبوي",
+        requiredArabicTokens = listOf("محمد", "ايوب"),
+        quranicAudioPathHint = "muhammad_ayyoob",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/muhammad_ayyoob/",
+        mp3QuranFallbackUrl = "https://server8.mp3quran.net/ayyub/",
+        gradient = listOf(Color(0xFF1A437A), Color(0xFF0B1F3B))
+    ),
+    QuranReciterCard(
+        id = "ajm",
+        nameArabic = "أحمد بن علي العجمي",
+        styleArabic = "مرتّل — تلاوة خاشعة",
+        requiredArabicTokens = listOf("احمد", "العجمي"),
+        quranicAudioPathHint = "ahmed_ibn_3ali_al-3ajamy",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/ahmed_ibn_3ali_al-3ajamy/",
+        mp3QuranFallbackUrl = "https://server10.mp3quran.net/ajm/",
+        gradient = listOf(Color(0xFF2E6B4F), Color(0xFF133B28))
+    ),
+    QuranReciterCard(
+        id = "basit",
+        nameArabic = "عبد الباسط عبد الصمد",
+        styleArabic = "المصحف المرتّل",
+        requiredArabicTokens = listOf("عبد", "الباسط"),
+        quranicAudioPathHint = "abdul_basit_murattal",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/abdul_basit_murattal/",
+        mp3QuranFallbackUrl = "https://server7.mp3quran.net/basit/",
+        gradient = listOf(Color(0xFF8C6B1F), Color(0xFF4A360B))
+    ),
+    QuranReciterCard(
+        id = "husr",
+        nameArabic = "محمود خليل الحصري",
+        styleArabic = "المصحف المرتّل",
+        requiredArabicTokens = listOf("محمود", "الحصري"),
+        quranicAudioPathHint = "mahmood_khaleel_al-husaree",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/mahmood_khaleel_al-husaree/",
+        mp3QuranFallbackUrl = "https://server13.mp3quran.net/husr/",
+        gradient = listOf(Color(0xFF1F6A8A), Color(0xFF0E3E56))
+    ),
+    QuranReciterCard(
+        id = "minsh",
+        nameArabic = "محمد صديق المنشاوي",
+        styleArabic = "المصحف المرتّل",
+        requiredArabicTokens = listOf("محمد", "المنشاوي"),
+        quranicAudioPathHint = "muhammad_siddeeq_al-minshaawee",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/muhammad_siddeeq_al-minshaawee/",
+        mp3QuranFallbackUrl = "https://server10.mp3quran.net/minsh/",
+        gradient = listOf(Color(0xFF564494), Color(0xFF2B2054))
+    ),
+    QuranReciterCard(
+        id = "maher",
+        nameArabic = "ماهر المعيقلي",
+        styleArabic = "إمام الحرم المكي — مرتّل",
+        requiredArabicTokens = listOf("ماهر", "المعيقلي"),
+        quranicAudioPathHint = "maher_256",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/maher_256/",
+        mp3QuranFallbackUrl = "https://server12.mp3quran.net/maher/",
+        gradient = listOf(Color(0xFF215B63), Color(0xFF0D2E33))
+    ),
+    QuranReciterCard(
+        id = "yasser",
+        nameArabic = "ياسر الدوسري",
+        styleArabic = "إمام الحرم المكي — مرتّل",
+        requiredArabicTokens = listOf("ياسر", "الدوسري"),
+        quranicAudioPathHint = "yasser_ad-dussary",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/yasser_ad-dussary/",
+        mp3QuranFallbackUrl = "https://server11.mp3quran.net/yasser/",
+        gradient = listOf(Color(0xFF7B435B), Color(0xFF411D2D))
+    ),
+    QuranReciterCard(
+        id = "s_gmd",
+        nameArabic = "سعد الغامدي",
+        styleArabic = "مرتّل — تلاوة هادئة",
+        requiredArabicTokens = listOf("سعد", "الغامدي"),
+        quranicAudioPathHint = "sa3d_al-ghaamidi",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/sa3d_al-ghaamidi/complete/",
+        mp3QuranFallbackUrl = "https://server7.mp3quran.net/s_gmd/",
+        gradient = listOf(Color(0xFF3E6947), Color(0xFF1B3621))
+    ),
+    QuranReciterCard(
+        id = "shur",
+        nameArabic = "سعود الشريم",
+        styleArabic = "إمام الحرم المكي — مرتّل",
+        requiredArabicTokens = listOf("سعود", "الشريم"),
+        quranicAudioPathHint = "sa3ood_al-shuraym",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/sa3ood_al-shuraym/",
+        mp3QuranFallbackUrl = "https://server7.mp3quran.net/shur/",
+        gradient = listOf(Color(0xFF274C77), Color(0xFF102540))
+    ),
+    QuranReciterCard(
+        id = "frs_a",
+        nameArabic = "فارس عباد",
+        styleArabic = "مرتّل — تلاوة نقية",
+        requiredArabicTokens = listOf("فارس", "عباد"),
+        quranicAudioPathHint = "fares",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/fares/",
+        mp3QuranFallbackUrl = "https://server8.mp3quran.net/frs_a/",
+        gradient = listOf(Color(0xFF7A5622), Color(0xFF3E290D))
+    ),
+    QuranReciterCard(
+        id = "ali_jaber",
+        nameArabic = "علي جابر",
+        styleArabic = "إمام الحرم المكي — مرتّل",
+        requiredArabicTokens = listOf("علي", "جابر"),
+        quranicAudioPathHint = "abdullaah_alee_jaabir_studio",
+        quranicAudioDirectUrl = "https://download.quranicaudio.com/quran/abdullaah_alee_jaabir_studio/",
+        mp3QuranFallbackUrl = "https://server11.mp3quran.net/a_jbr/",
+        gradient = listOf(Color(0xFF1B4965), Color(0xFF0D283A))
+    )
 )
+
+private fun normalizeArabicForMatch(input: String): String {
+    return input
+        .replace(Regex("[\\u064B-\\u065F\\u0670\\u0640]"), "")
+        .replace('أ', 'ا')
+        .replace('إ', 'ا')
+        .replace('آ', 'ا')
+        .replace('ى', 'ي')
+        .replace('ة', 'ه')
+        .lowercase()
+        .trim()
+}
+
+private fun isExcludedStyle(text: String): Boolean {
+    val norm = normalizeArabicForMatch(text)
+    val banned = listOf(
+        "mujawwad", "mojawwad", "مجود",
+        "muallim", "معلم",
+        "children", "اطفال",
+        "warsh", "ورش",
+        "qaloon", "قالون",
+        "doori", "الدوري",
+        "soosi", "السوسي",
+        "shubah", "شعبه",
+        "translation", "ترجمه",
+        "taraweeh", "تراويح"
+    )
+    return banned.any { norm.contains(it) }
+}
+
+private fun fetchQuranicAudioServers(): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    runCatching {
+        val conn = (URL("https://quranicaudio.com/api/qaris").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            setRequestProperty("User-Agent", "DHIKRI-Android")
+        }
+        if (conn.responseCode == 200) {
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val arr = JSONArray(body)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val sectionId = obj.optInt("section_id", 1)
+                if (sectionId != 1) continue
+                val relPath = obj.optString("relative_path").trim().trimStart('/')
+                if (relPath.isBlank()) continue
+                val enName = obj.optString("name")
+                val arName = obj.optString("arabic_name")
+                val combined = "$enName $arName $relPath"
+                if (isExcludedStyle(combined)) continue
+
+                val normAr = normalizeArabicForMatch(arName)
+                val lowerPath = relPath.lowercase()
+                val normalizedBase = "https://download.quranicaudio.com/quran/" +
+                    if (relPath.endsWith("/")) relPath else "$relPath/"
+
+                recitersCatalog.forEach { card ->
+                    val pathMatches = lowerPath.startsWith(card.quranicAudioPathHint.lowercase())
+                    val arabicMatches = normAr.isNotBlank() &&
+                        card.requiredArabicTokens.all { tok -> normAr.contains(tok) }
+                    if (pathMatches) {
+                        result[card.id] = normalizedBase
+                    } else if (arabicMatches && card.id !in result) {
+                        result[card.id] = normalizedBase
+                    }
+                }
+            }
+        }
+        conn.disconnect()
+    }
+    return result
+}
+
+private fun fetchMp3QuranMurattalServers(): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    runCatching {
+        val conn = (URL("https://www.mp3quran.net/api/v3/reciters?language=ar").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            setRequestProperty("User-Agent", "DHIKRI-Android")
+        }
+        if (conn.responseCode == 200) {
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val arr = JSONObject(body).optJSONArray("reciters")
+            if (arr != null) {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val normName = normalizeArabicForMatch(obj.optString("name"))
+                    val moshafs = obj.optJSONArray("moshaf") ?: continue
+                    if (moshafs.length() == 0) continue
+
+                    // Pick strictly Hafs an Asim - Murattal (complete 114 surahs, never Mujawwad/Muallim)
+                    var bestServer: String? = null
+                    var bestScore = -1
+                    for (m in 0 until moshafs.length()) {
+                        val mObj = moshafs.optJSONObject(m) ?: continue
+                        val server = mObj.optString("server")
+                        if (!server.startsWith("https://")) continue
+                        val mName = normalizeArabicForMatch(mObj.optString("name"))
+                        if (isExcludedStyle(mName)) continue
+                        val surahTotal = mObj.optInt("surah_total", 0)
+                        var score = 0
+                        if (surahTotal >= 114) score += 10
+                        if (mName.contains("حفص")) score += 5
+                        if (mName.contains("مرتل")) score += 5
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestServer = if (server.endsWith("/")) server else "$server/"
+                        }
+                    }
+                    val chosen = bestServer ?: continue
+
+                    recitersCatalog.forEach { card ->
+                        if (card.id !in result && card.requiredArabicTokens.all { tok -> normName.contains(tok) }) {
+                            result[card.id] = chosen
+                        }
+                    }
+                }
+            }
+        }
+        conn.disconnect()
+    }
+    return result
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +304,8 @@ fun RecitationsHubScreen(
     val scope = rememberCoroutineScope()
 
     var selectedReciter by remember { mutableStateOf<QuranReciterCard?>(null) }
-    var resolvedServers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var quranicAudioServers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var mp3QuranServers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var playingSurahId by remember { mutableStateOf<Int?>(null) }
     var playingSurahName by remember { mutableStateOf<String?>(null) }
@@ -85,38 +314,13 @@ fun RecitationsHubScreen(
     var refreshTick by remember { mutableIntStateOf(0) }
     var searchSurah by remember { mutableStateOf("") }
 
-    // Fetch live MP3Quran server map once in background
+    // Resolve live official QuranicAudio.com (Quran.com) + strict MP3Quran Murattal fallbacks once
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            runCatching {
-                val conn = (URL("https://www.mp3quran.net/api/v3/reciters?language=ar").openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 8_000
-                    readTimeout = 8_000
-                    setRequestProperty("User-Agent", "DHIKRI-Android")
-                }
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val arr = JSONObject(body).optJSONArray("reciters")
-                    if (arr != null) {
-                        val map = mutableMapOf<String, String>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            val rName = obj.optString("name")
-                            val moshafs = obj.optJSONArray("moshaf") ?: continue
-                            if (moshafs.length() == 0) continue
-                            val server = moshafs.getJSONObject(0).optString("server")
-                            if (!server.startsWith("https://")) continue
-                            recitersCatalog.forEach { card ->
-                                if (card.id !in map && rName.contains(card.searchKeyword)) {
-                                    map[card.id] = if (server.endsWith("/")) server else "$server/"
-                                }
-                            }
-                        }
-                        resolvedServers = map
-                    }
-                }
-                conn.disconnect()
-            }
+            val qa = fetchQuranicAudioServers()
+            val mp3 = fetchMp3QuranMurattalServers()
+            quranicAudioServers = qa
+            mp3QuranServers = mp3
         }
     }
 
@@ -139,13 +343,43 @@ fun RecitationsHubScreen(
     }
 
     fun localAudioFile(reciter: QuranReciterCard, surahId: Int): File {
-        val dir = File(context.filesDir, "recitations/${reciter.id}").apply { mkdirs() }
+        val dir = File(context.filesDir, "recitations_v2/${reciter.id}").apply { mkdirs() }
         return File(dir, "%03d.mp3".format(surahId))
     }
 
-    fun surahUrl(reciter: QuranReciterCard, surahId: Int): String {
-        val base = resolvedServers[reciter.id] ?: reciter.fallbackBaseUrl
-        return "$base%03d.mp3".format(surahId)
+    fun candidateUrls(reciter: QuranReciterCard, surahId: Int): List<String> {
+        val fileName = "%03d.mp3".format(surahId)
+        val bases = listOfNotNull(
+            quranicAudioServers[reciter.id],
+            reciter.quranicAudioDirectUrl,
+            mp3QuranServers[reciter.id],
+            reciter.mp3QuranFallbackUrl
+        ).distinct()
+        return bases.map { base ->
+            val clean = if (base.endsWith("/")) base else "$base/"
+            "$clean$fileName"
+        }
+    }
+
+    fun resolveWorkingAudioUrl(reciter: QuranReciterCard, surahId: Int): String {
+        val candidates = candidateUrls(reciter, surahId)
+        for (candidate in candidates) {
+            val finalUrl = runCatching {
+                val c = (URL(candidate).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "HEAD"
+                    instanceFollowRedirects = true
+                    connectTimeout = 6_000
+                    readTimeout = 6_000
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
+                }
+                val code = c.responseCode
+                val resolved = c.url.toString()
+                c.disconnect()
+                if (code in 200..299) resolved else null
+            }.getOrNull()
+            if (finalUrl != null) return finalUrl
+        }
+        return candidates.first()
     }
 
     fun playSurah(reciter: QuranReciterCard, surahId: Int, surahName: String) {
@@ -164,20 +398,7 @@ fun RecitationsHubScreen(
                 localFile.absolutePath
             } else {
                 withContext(Dispatchers.IO) {
-                    val primary = surahUrl(reciter, surahId)
-                    runCatching {
-                        val c = (URL(primary).openConnection() as HttpURLConnection).apply {
-                            requestMethod = "HEAD"
-                            instanceFollowRedirects = true
-                            connectTimeout = 7_000
-                            readTimeout = 7_000
-                            setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
-                        }
-                        c.connect()
-                        val finalUrl = c.url.toString()
-                        c.disconnect()
-                        finalUrl
-                    }.getOrDefault(primary)
+                    resolveWorkingAudioUrl(reciter, surahId)
                 }
             }
 
@@ -224,14 +445,15 @@ fun RecitationsHubScreen(
         statusMessage = "جاري تحميل سورة $surahName للاستماع أوفلاين..."
         scope.launch(Dispatchers.IO) {
             val target = localAudioFile(reciter, surahId)
+            val workingUrl = resolveWorkingAudioUrl(reciter, surahId)
             val ok = runCatching {
-                val conn = (URL(surahUrl(reciter, surahId)).openConnection() as HttpURLConnection).apply {
+                val conn = (URL(workingUrl).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15_000
                     readTimeout = 30_000
                     instanceFollowRedirects = true
                     setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
                 }
-                if (conn.responseCode != 200) {
+                if (conn.responseCode !in 200..299) {
                     conn.disconnect()
                     return@runCatching false
                 }
@@ -252,12 +474,12 @@ fun RecitationsHubScreen(
 
     val currentReciter = selectedReciter
     if (currentReciter == null) {
-        // STAGE 1: 2-Column Square Gradient Cards Grid for all 10 Reciters (matching HomeScreen cards!)
+        // STAGE 1: 2-Column Square Gradient Cards Grid for all 11 Reciters
         Scaffold(
             topBar = {
                 DhikriCompactTopBar(
                     title = "الاستماع للقرآن الكريم",
-                    subtitle = "اختر القارئ للاستماع أو التحميل أوفلاين (10 قراء)",
+                    subtitle = "اختر القارئ للاستماع أو التحميل أوفلاين (${recitersCatalog.size} قارئاً)",
                     onBack = onBack
                 )
             }
