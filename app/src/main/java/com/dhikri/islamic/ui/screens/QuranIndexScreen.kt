@@ -166,7 +166,7 @@ fun QuranIndexScreen(
                     contentPadding = PaddingValues(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(hizbs, key = { it.quarterNumber }) { q ->
+                    items(hizbs, key = { it.id }) { q ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable { onOpenPage(q.startPage) },
                             shape = RoundedCornerShape(14.dp)
@@ -176,7 +176,7 @@ fun QuranIndexScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("الحزب ${q.hizbNumber} — الربع ${q.quarterNumber}", fontWeight = FontWeight.SemiBold)
+                                Text("الحزب ${q.hizbNumber} — الربع ${q.quarterInHizb}", fontWeight = FontWeight.SemiBold)
                                 Text("صفحة ${q.startPage}", color = SoftGold)
                             }
                         }

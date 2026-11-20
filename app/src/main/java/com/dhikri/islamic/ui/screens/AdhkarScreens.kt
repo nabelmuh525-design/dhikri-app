@@ -493,8 +493,8 @@ fun AdhkarDetailScreen(
                             val isVisible = hiddenMap[card.uniqueKey] != true
 
                             // Silky-smooth disappear motion + upward placement animation for remaining cards
-                            Box(modifier = Modifier.animateItem()) {
-                                AnimatedVisibility(
+                            androidx.compose.animation.AnimatedVisibility(
+                                modifier = Modifier.animateItem(),
                                     visible = isVisible,
                                     exit = slideOutHorizontally(
                                         targetOffsetX = { -it },
@@ -674,7 +674,6 @@ fun AdhkarDetailScreen(
                         }
                     }
                 }
-            }
 
             if (isFullScreen) {
                 Surface(
