@@ -117,7 +117,7 @@ fun MushafReaderScreen(
     }
 
     // Fast cached single-ayah pronunciation (64kbps -> ~35KB, downloads in ~0.3s and plays from local cache!)
-    fun playAyahPronunciation(surahId: Int, ayahNumber: Int) {
+    fun playAyahPronunciation(surahId: Int, ayahNumber: Int, globalAyahId: Int) {
         stopAllAudio()
         val s3 = "%03d".format(surahId)
         val a3 = "%03d".format(ayahNumber)
@@ -132,9 +132,10 @@ fun MushafReaderScreen(
             } else {
                 withContext(Dispatchers.IO) {
                     val candidates = listOf(
-                        "https://everyayah.com/data/Husary_64kbps/$s3$a3.mp3",
-                        "https://everyayah.com/data/Husary_128kbps/$s3$a3.mp3",
-                        "https://everyayah.com/data/Alafasy_64kbps/$s3$a3.mp3"
+                        "https://verses.quran.foundation/Husary/mp3/$s3$a3.mp3",
+                        "https://cdn.islamic.network/quran/audio/128/ar.husary/$globalAyahId.mp3",
+                        "https://cdn.islamic.network/quran/audio/64/ar.husary/$globalAyahId.mp3",
+                        "https://everyayah.com/data/Husary_64kbps/$s3$a3.mp3"
                     )
                     var success = false
                     for (urlStr in candidates) {
@@ -443,7 +444,7 @@ fun MushafReaderScreen(
                 Button(
                     onClick = {
                         if (isPlayingAyahAudio) stopAllAudio()
-                        else playAyahPronunciation(ayah.surahId, ayah.ayahNumber)
+                        else playAyahPronunciation(ayah.surahId, ayah.ayahNumber, ayah.id)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -458,30 +459,39 @@ fun MushafReaderScreen(
                     Text(msg, fontSize = 12.sp, color = SoftGold, fontWeight = FontWeight.SemiBold)
                 }
 
-                // Quick actions row
+                // Sleek Icon + 1-Line Label Quick Actions Row (zero broken Arabic text)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { viewModel.addBookmark(ayah.surahId, ayah.ayahNumber, currentPage, "سورة $surahName (آية ${ayah.ayahNumber})") },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("علامة", fontSize = 12.sp) }
-                    OutlinedButton(
-                        onClick = { viewModel.toggleFavoriteAyah(ayah, isFav) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if (isFav) "إزالة مفضلة" else "مفضلة", fontSize = 12.sp) }
-                    OutlinedButton(
-                        onClick = { clipboard.setText(AnnotatedString("${ayah.textHafsV20} [سورة $surahName: ${ayah.ayahNumber}]")) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("نسخ", fontSize = 12.sp) }
-                    OutlinedButton(
+                    AyahActionChip(
+                        icon = Icons.Default.BookmarkAdd,
+                        label = "علامة",
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.addBookmark(ayah.surahId, ayah.ayahNumber, currentPage, "سورة $surahName (آية ${ayah.ayahNumber})") }
+                    )
+                    AyahActionChip(
+                        icon = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        label = if (isFav) "محفوظة" else "مفضلة",
+                        highlighted = isFav,
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.toggleFavoriteAyah(ayah, isFav) }
+                    )
+                    AyahActionChip(
+                        icon = Icons.Default.ContentCopy,
+                        label = "نسخ",
+                        modifier = Modifier.weight(1f),
+                        onClick = { clipboard.setText(AnnotatedString("${ayah.textHafsV20} [سورة $surahName: ${ayah.ayahNumber}]")) }
+                    )
+                    AyahActionChip(
+                        icon = Icons.Default.Share,
+                        label = "مشاركة",
+                        modifier = Modifier.weight(1f),
                         onClick = {
                             val share = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, "﴿${ayah.textHafsV20}﴾ [سورة $surahName: ${ayah.ayahNumber}]\nعبر تطبيق ذِكري")
                             }
                             context.startActivity(Intent.createChooser(share, "مشاركة الآية"))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("مشاركة", fontSize = 12.sp) }
+                        }
+                    )
                 }
 
                 HorizontalDivider()
@@ -520,6 +530,38 @@ fun MushafReaderScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AyahActionChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    highlighted: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (highlighted) SoftGold.copy(alpha = 0.22f) else EmeraldDark.copy(alpha = 0.85f),
+        border = BorderStroke(1.dp, if (highlighted) SoftGold else SoftGold.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(icon, contentDescription = label, tint = SoftGold, modifier = Modifier.size(20.dp))
+            Text(
+                text = label,
+                color = Color.White,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
+            )
         }
     }
 }

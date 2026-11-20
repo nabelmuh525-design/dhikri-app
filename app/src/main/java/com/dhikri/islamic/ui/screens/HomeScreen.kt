@@ -93,13 +93,15 @@ fun HomeScreen(
     val lastPage = lastRead?.pageNumber ?: 1
     val lastAyah = lastRead?.ayahNumber ?: 1
     val datePillText = remember {
+        val now = Date()
+        val dayName = SimpleDateFormat("EEEE", Locale("ar")).format(now)
         val hijri = runCatching {
             val uLocale = ULocale("ar@calendar=islamic-umalqura")
             val cal = Calendar.getInstance(uLocale)
             DateFormat.getDateInstance(DateFormat.MEDIUM, uLocale).format(cal)
         }.getOrElse { "" }
-        val greg = SimpleDateFormat("d MMMM yyyy", Locale("ar")).format(Date())
-        if (hijri.isNotBlank()) "$hijri  •  $greg" else greg
+        val greg = SimpleDateFormat("d MMMM yyyy", Locale("ar")).format(now)
+        if (hijri.isNotBlank()) "$dayName • $hijri • $greg" else "$dayName • $greg"
     }
 
     Column(
