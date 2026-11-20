@@ -343,16 +343,14 @@ fun AdhkarDetailScreen(
             }
         }.let { cards ->
             if (categoryId == 27 && mode == "morning") {
-                val isSubhan = { c: DisplayDhikrCard ->
+                val subhanIdx = cards.indexOfFirst { c ->
                     val plain = c.textArabic.replace(Regex("[\u064B-\u065F\u0670]"), "")
-                    plain.contains("سبحان الله وبحمده") && plain.length < 70
+                    plain.contains("سبحان الله وبحمده") && plain.length < 120
                 }
-                val existing = cards.filter(isSubhan)
-                val others = cards.filterNot(isSubhan)
-                if (existing.isNotEmpty()) {
-                    others + existing
+                if (subhanIdx != -1) {
+                    cards.take(subhanIdx + 1)
                 } else {
-                    others + DisplayDhikrCard(
+                    cards + DisplayDhikrCard(
                         uniqueKey = "morning_subhanallah_end",
                         dbItemId = 999100,
                         textArabic = "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ.",
