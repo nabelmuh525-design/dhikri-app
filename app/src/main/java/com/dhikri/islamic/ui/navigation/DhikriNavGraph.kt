@@ -168,7 +168,8 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     QuranIndexScreen(
                         viewModel = viewModel,
                         onOpenPage = { page -> navController.navigate(Routes.mushafPage(page)) },
-                        onOpenSearch = { navController.navigate(Routes.QURAN_SEARCH) }
+                        onOpenSearch = { navController.navigate(Routes.QURAN_SEARCH) },
+                        onBack = { navigateToTab(BottomTab.Home) }
                     )
                 }
                 composable(
@@ -193,7 +194,8 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 composable(BottomTab.Adhkar.route) {
                     AdhkarListScreen(
                         viewModel = viewModel,
-                        onOpenCategory = { id, mode -> navController.navigate(Routes.adhkarDetail(id, mode)) }
+                        onOpenCategory = { id, mode -> navController.navigate(Routes.adhkarDetail(id, mode)) },
+                        onBack = { navigateToTab(BottomTab.Home) }
                     )
                 }
                 composable(
@@ -213,7 +215,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     )
                 }
                 composable(BottomTab.Qibla.route) {
-                    QiblaCompassScreen(onBack = null)
+                    QiblaCompassScreen(onBack = { navigateToTab(BottomTab.Home) })
                 }
                 composable(Routes.MORE) {
                     MoreScreen(

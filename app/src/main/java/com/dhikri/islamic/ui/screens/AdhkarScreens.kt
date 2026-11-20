@@ -3,8 +3,10 @@ package com.dhikri.islamic.ui.screens
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
@@ -37,17 +39,29 @@ import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.EmeraldPrimary
 import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private data class DisplayDhikrCard(
+    val uniqueKey: String,
+    val dbItemId: Int,
+    val titleBadge: String? = null,
+    val textArabic: String,
+    val repeatCount: Int,
+    val sourceReference: String,
+    val isFavorite: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdhkarListScreen(
     viewModel: DhikriViewModel,
-    onOpenCategory: (Int, String) -> Unit
+    onOpenCategory: (Int, String) -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val categories by viewModel.adhkarCategories.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
-    // Exclude combined morning/evening id=27 from the lower list since Morning & Evening are pinned at the very top
     val otherCategories = remember(categories, searchQuery) {
         val base = categories.filterNot { it.id == 27 }
         if (searchQuery.isBlank()) base
@@ -58,7 +72,8 @@ fun AdhkarListScreen(
         topBar = {
             DhikriCompactTopBar(
                 title = "الأذكار",
-                subtitle = "أذكار الصباح والمساء وحصن المسلم — دون إنترنت"
+                subtitle = "أذكار الصباح والمساء وحصن المسلم — دون إنترنت",
+                onBack = onBack
             )
         }
     ) { padding ->
@@ -69,7 +84,7 @@ fun AdhkarListScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 1. Top Priority #1: أذكار الصباح
+            // 1. أذكار الصباح
             if (searchQuery.isBlank() || "أذكار الصباح".contains(searchQuery.trim())) {
                 item {
                     PinnedAdhkarBanner(
@@ -83,7 +98,7 @@ fun AdhkarListScreen(
                 }
             }
 
-            // 2. Top Priority #2: أذكار المساء (directly underneath Morning)
+            // 2. أذكار المساء
             if (searchQuery.isBlank() || "أذكار المساء".contains(searchQuery.trim())) {
                 item {
                     PinnedAdhkarBanner(
@@ -97,7 +112,7 @@ fun AdhkarListScreen(
                 }
             }
 
-            // 3. Search Bar for remaining Adhkar
+            // 3. شريط البحث
             item {
                 OutlinedTextField(
                     value = searchQuery,
@@ -117,7 +132,6 @@ fun AdhkarListScreen(
                 )
             }
 
-            // Section header for remaining Adhkar
             item {
                 Text(
                     text = "باقي الأذكار والأدعية (${otherCategories.size})",
@@ -128,7 +142,6 @@ fun AdhkarListScreen(
                 )
             }
 
-            // 4. All Remaining Adhkar Categories
             items(otherCategories, key = { it.id }) { cat ->
                 Card(
                     modifier = Modifier
@@ -258,14 +271,76 @@ fun AdhkarDetailScreen(
 ) {
     val categories by viewModel.adhkarCategories.collectAsState()
     val rawItems by viewModel.observeAdhkarItems(categoryId).collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
-    val itemsList = remember(rawItems, categoryId, mode) {
-        if (categoryId == 27 && mode == "morning") {
+    // Filter Morning/Evening & split combined Mu'awwidhat (Al-Ikhlas, Al-Falaq, An-Nas) into 3 separate cards
+    val displayCards = remember(rawItems, categoryId, mode) {
+        val filtered = if (categoryId == 27 && mode == "morning") {
             rawItems.filterNot { it.textArabic.contains("إذا أمسى)") || it.textArabic.contains("إذا أمسى).") }
         } else if (categoryId == 27 && mode == "evening") {
             rawItems.filterNot { it.textArabic.contains("إذا أصبحَ") || it.textArabic.contains("إذا أصبح)") }
         } else {
             rawItems
+        }
+
+        buildList {
+            filtered.forEach { item ->
+                val cleaned = if (categoryId == 27 && mode == "morning") {
+                    item.textArabic.replace(Regex("""\[\s*و?إذا أمسى.*?\]"""), "").trim()
+                } else {
+                    item.textArabic
+                }
+
+                // Detect combined 3 Quls (Al-Ikhlas + Al-Falaq + An-Nas) and split into 3 individual cards
+                val hasIkhlas = cleaned.contains("قُلْ هُوَ") || cleaned.contains("قل هو")
+                val hasFalaq = cleaned.contains("بِرَبِّ الْفَلَقِ") || cleaned.contains("بِرَبِّ الْفَلَقِ") || cleaned.contains("الفلق")
+                val hasNas = cleaned.contains("بِرَبِّ النَّاسِ") || cleaned.contains("بِرَبِّ النَّاسِ") || cleaned.contains("الناس")
+
+                if (hasIkhlas && hasFalaq && hasNas) {
+                    val parts = cleaned.split(Regex("""(?=بسم الله الرحمن الرحيم)"""))
+                        .map { it.trim().replace(Regex("""\(ثلاث\s+مر[ّٰ]?اتٍ?\)\.?"""), "").trim() }
+                        .filter { it.isNotBlank() }
+
+                    if (parts.size == 3) {
+                        val surahLabels = listOf("سورة الإخلاص", "سورة الفلق", "سورة الناس")
+                        parts.forEachIndexed { idx, surahText ->
+                            add(
+                                DisplayDhikrCard(
+                                    uniqueKey = "${item.id}_qul_$idx",
+                                    dbItemId = item.id,
+                                    titleBadge = surahLabels[idx],
+                                    textArabic = surahText,
+                                    repeatCount = item.repeatCount.coerceAtLeast(3),
+                                    sourceReference = item.sourceReference,
+                                    isFavorite = item.isFavorite
+                                )
+                            )
+                        }
+                    } else {
+                        add(
+                            DisplayDhikrCard(
+                                uniqueKey = "${item.id}",
+                                dbItemId = item.id,
+                                textArabic = cleaned,
+                                repeatCount = item.repeatCount,
+                                sourceReference = item.sourceReference,
+                                isFavorite = item.isFavorite
+                            )
+                        )
+                    }
+                } else {
+                    add(
+                        DisplayDhikrCard(
+                            uniqueKey = "${item.id}",
+                            dbItemId = item.id,
+                            textArabic = cleaned,
+                            repeatCount = item.repeatCount,
+                            sourceReference = item.sourceReference,
+                            isFavorite = item.isFavorite
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -275,13 +350,13 @@ fun AdhkarDetailScreen(
         else -> categories.firstOrNull { it.id == categoryId }?.titleArabic ?: "الأذكار"
     }
 
-    // Track tapped count per item (countdown remaining = repeatCount - count)
-    val progressMap = remember { mutableStateMapOf<Int, Int>() }
+    val progressMap = remember { mutableStateMapOf<String, Int>() }
+    val hiddenMap = remember { mutableStateMapOf<String, Boolean>() }
     var adhkarFontSizeSp by remember { mutableFloatStateOf(20f) }
     var isFullScreen by remember { mutableStateOf(false) }
 
-    val completedCount = itemsList.count { (progressMap[it.id] ?: 0) >= it.repeatCount }
-    val allCompleted = itemsList.isNotEmpty() && completedCount == itemsList.size
+    val completedCount = displayCards.count { (progressMap[it.uniqueKey] ?: 0) >= it.repeatCount }
+    val allCompleted = displayCards.isNotEmpty() && displayCards.all { hiddenMap[it.uniqueKey] == true }
     val context = LocalContext.current
     val currentView = LocalView.current
 
@@ -291,12 +366,26 @@ fun AdhkarDetailScreen(
     }
     BackHandler(enabled = isFullScreen) { isFullScreen = false }
 
+    fun handleCardTap(card: DisplayDhikrCard) {
+        val currentTapped = progressMap[card.uniqueKey] ?: 0
+        if (currentTapped >= card.repeatCount) return
+        val nextTapped = currentTapped + 1
+        progressMap[card.uniqueKey] = nextTapped
+        if (nextTapped >= card.repeatCount) {
+            scope.launch {
+                // Brief 130ms visual checkmark beat before silky slide-out disappearance
+                delay(130)
+                hiddenMap[card.uniqueKey] = true
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             if (!isFullScreen) {
                 DhikriCompactTopBar(
                     title = screenTitle,
-                    subtitle = if (itemsList.isNotEmpty()) "المتبقي ${itemsList.size - completedCount} من ${itemsList.size}" else null,
+                    subtitle = if (displayCards.isNotEmpty()) "المتبقي ${displayCards.size - completedCount} من ${displayCards.size}" else null,
                     onBack = onBack,
                     actions = {
                         IconButton(onClick = { adhkarFontSizeSp = (adhkarFontSizeSp - 2f).coerceAtLeast(15f) }) {
@@ -305,7 +394,10 @@ fun AdhkarDetailScreen(
                         IconButton(onClick = { adhkarFontSizeSp = (adhkarFontSizeSp + 2f).coerceAtMost(34f) }) {
                             Icon(Icons.Default.TextIncrease, contentDescription = "تكبير الخط")
                         }
-                        IconButton(onClick = { progressMap.clear() }) {
+                        IconButton(onClick = {
+                            progressMap.clear()
+                            hiddenMap.clear()
+                        }) {
                             Icon(Icons.Default.Refresh, contentDescription = "إعادة التصفير")
                         }
                         IconButton(onClick = { isFullScreen = true }) {
@@ -322,9 +414,9 @@ fun AdhkarDetailScreen(
                 .padding(padding)
         ) {
             Column(Modifier.fillMaxSize()) {
-                if (itemsList.isNotEmpty() && !isFullScreen) {
+                if (displayCards.isNotEmpty() && !isFullScreen) {
                     LinearProgressIndicator(
-                        progress = { completedCount.toFloat() / itemsList.size.toFloat() },
+                        progress = { completedCount.toFloat() / displayCards.size.toFloat() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(5.dp),
@@ -334,7 +426,6 @@ fun AdhkarDetailScreen(
                 }
 
                 if (allCompleted) {
-                    // Completion Celebration View
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -373,7 +464,10 @@ fun AdhkarDetailScreen(
                                 )
                                 Spacer(Modifier.height(6.dp))
                                 Button(
-                                    onClick = { progressMap.clear() },
+                                    onClick = {
+                                        progressMap.clear()
+                                        hiddenMap.clear()
+                                    },
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = SoftGold,
@@ -393,174 +487,184 @@ fun AdhkarDetailScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(itemsList, key = { it.id }) { item ->
-                            val tapped = progressMap[item.id] ?: 0
-                            val remaining = (item.repeatCount - tapped).coerceAtLeast(0)
-                            val displayText = remember(item.textArabic, mode) {
-                                if (categoryId == 27 && mode == "morning") {
-                                    item.textArabic.replace(Regex("""\[\s*و?إذا أمسى.*?\]"""), "").trim()
-                                } else {
-                                    item.textArabic
-                                }
-                            }
+                        items(displayCards, key = { it.uniqueKey }) { card ->
+                            val tapped = progressMap[card.uniqueKey] ?: 0
+                            val remaining = (card.repeatCount - tapped).coerceAtLeast(0)
+                            val isVisible = hiddenMap[card.uniqueKey] != true
 
-                            // Smooth slide-out and disappear when countdown reaches 0 (matching reference video!)
-                            AnimatedVisibility(
-                                visible = remaining > 0,
-                                exit = slideOutHorizontally(
-                                    targetOffsetX = { -it },
-                                    animationSpec = tween(320)
-                                ) + shrinkVertically(
-                                    animationSpec = tween(260)
-                                ) + fadeOut(
-                                    animationSpec = tween(240)
-                                )
-                            ) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .shadow(4.dp, RoundedCornerShape(20.dp))
-                                        .clickable {
-                                            if (remaining > 0) {
-                                                progressMap[item.id] = tapped + 1
-                                            }
-                                        },
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
+                            // Silky-smooth disappear motion + upward placement animation for remaining cards
+                            Box(modifier = Modifier.animateItem()) {
+                                AnimatedVisibility(
+                                    visible = isVisible,
+                                    exit = slideOutHorizontally(
+                                        targetOffsetX = { -it },
+                                        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                                    ) + scaleOut(
+                                        targetScale = 0.92f,
+                                        animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(
+                                        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                                    ) + shrinkVertically(
+                                        shrinkTowards = Alignment.Top,
+                                        animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing)
+                                    )
                                 ) {
-                                    Column(Modifier.fillMaxWidth()) {
-                                        // Top favorite icon & text body
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 16.dp)
-                                        ) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .shadow(4.dp, RoundedCornerShape(20.dp))
+                                            .clickable { handleCardTap(card) },
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(
+                                            if (remaining == 0) 1.5.dp else 1.dp,
+                                            if (remaining == 0) Color(0xFF4ADE80) else SoftGold.copy(alpha = 0.45f)
+                                        )
+                                    ) {
+                                        Column(Modifier.fillMaxWidth()) {
                                             Column(
-                                                modifier = Modifier.fillMaxWidth(),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 16.dp, vertical = 16.dp),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
+                                                card.titleBadge?.let { badge ->
+                                                    Surface(
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = SoftGold.copy(alpha = 0.18f),
+                                                        border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.65f))
+                                                    ) {
+                                                        Text(
+                                                            text = badge,
+                                                            color = SoftGold,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp,
+                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                                        )
+                                                    }
+                                                }
                                                 Text(
-                                                    text = displayText,
+                                                    text = card.textArabic,
                                                     fontSize = adhkarFontSizeSp.sp,
                                                     lineHeight = (adhkarFontSizeSp * 1.75f).sp,
                                                     textAlign = TextAlign.Center,
                                                     color = MaterialTheme.colorScheme.onSurface,
                                                     modifier = Modifier.fillMaxWidth()
                                                 )
-                                                if (item.sourceReference.isNotBlank()) {
+                                                if (card.sourceReference.isNotBlank()) {
                                                     Text(
-                                                        text = item.sourceReference,
+                                                        text = card.sourceReference,
                                                         style = MaterialTheme.typography.labelMedium,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         textAlign = TextAlign.Center
                                                     )
                                                 }
                                             }
-                                        }
 
-                                        // Bottom Action Bar: التكرار [remaining] | مشاركة | مفضلة (matching video layout in DHIKRI theme)
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(
-                                                    Brush.horizontalGradient(
-                                                        listOf(Color(0xFF163A69), EmeraldDark)
-                                                    )
-                                                )
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            // Countdown Counter Pill
                                             Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 modifier = Modifier
-                                                    .weight(1f)
-                                                    .clickable {
-                                                        if (remaining > 0) {
-                                                            progressMap[item.id] = tapped + 1
-                                                        }
-                                                    }
-                                            ) {
-                                                Text(
-                                                    text = "التكرار",
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 15.sp
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(34.dp)
-                                                        .clip(CircleShape)
-                                                        .background(SoftGold),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "$remaining",
-                                                        color = Color(0xFF1F1604),
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        fontSize = 15.sp
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        Brush.horizontalGradient(
+                                                            listOf(Color(0xFF163A69), EmeraldDark)
+                                                        )
                                                     )
-                                                }
-                                            }
-
-                                            // Vertical divider
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(1.dp)
-                                                    .height(24.dp)
-                                                    .background(Color.White.copy(alpha = 0.25f))
-                                            )
-
-                                            // Share + Favorite buttons
-                                            Row(
+                                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                modifier = Modifier.padding(start = 10.dp)
+                                                horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
                                                 Row(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(10.dp))
-                                                        .clickable {
-                                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                                                type = "text/plain"
-                                                                putExtra(
-                                                                    Intent.EXTRA_TEXT,
-                                                                    "$displayText\n\nالمصدر: ${item.sourceReference}\nعبر تطبيق ذِكري"
-                                                                )
-                                                            }
-                                                            context.startActivity(Intent.createChooser(shareIntent, "مشاركة الذكر"))
-                                                        }
-                                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clickable { handleCardTap(card) }
                                                 ) {
                                                     Text(
-                                                        text = "مشاركة",
+                                                        text = "التكرار",
                                                         color = Color.White,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 14.sp
+                                                        fontSize = 15.sp
                                                     )
-                                                    Icon(
-                                                        imageVector = Icons.Default.Share,
-                                                        contentDescription = "مشاركة",
-                                                        tint = SoftGold,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(34.dp)
+                                                            .clip(CircleShape)
+                                                            .background(if (remaining == 0) Color(0xFF4ADE80) else SoftGold),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (remaining == 0) {
+                                                            Icon(
+                                                                Icons.Default.Check,
+                                                                contentDescription = "مكتمل",
+                                                                tint = Color(0xFF062814),
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                        } else {
+                                                            Text(
+                                                                text = "$remaining",
+                                                                color = Color(0xFF1F1604),
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                fontSize = 15.sp
+                                                            )
+                                                        }
+                                                    }
                                                 }
-                                                IconButton(
-                                                    onClick = { viewModel.toggleAdhkarFavorite(item.id, item.isFavorite == 0) },
-                                                    modifier = Modifier.size(32.dp)
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(1.dp)
+                                                        .height(24.dp)
+                                                        .background(Color.White.copy(alpha = 0.25f))
+                                                )
+
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    modifier = Modifier.padding(start = 10.dp)
                                                 ) {
-                                                    Icon(
-                                                        imageVector = if (item.isFavorite == 1) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                        contentDescription = "مفضلة",
-                                                        tint = if (item.isFavorite == 1) SoftGold else Color.White.copy(alpha = 0.8f),
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .clickable {
+                                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                    type = "text/plain"
+                                                                    putExtra(
+                                                                        Intent.EXTRA_TEXT,
+                                                                        "${card.textArabic}\n\nالمصدر: ${card.sourceReference}\nعبر تطبيق ذِكري"
+                                                                    )
+                                                                }
+                                                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة الذكر"))
+                                                            }
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "مشاركة",
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 14.sp
+                                                        )
+                                                        Icon(
+                                                            imageVector = Icons.Default.Share,
+                                                            contentDescription = "مشاركة",
+                                                            tint = SoftGold,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = { viewModel.toggleAdhkarFavorite(card.dbItemId, card.isFavorite == 0) },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (card.isFavorite == 1) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                            contentDescription = "مفضلة",
+                                                            tint = if (card.isFavorite == 1) SoftGold else Color.White.copy(alpha = 0.8f),
+                                                            modifier = Modifier.size(19.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
