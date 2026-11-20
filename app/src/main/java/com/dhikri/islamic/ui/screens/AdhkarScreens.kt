@@ -1,6 +1,11 @@
 package com.dhikri.islamic.ui.screens
 
+import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -60,6 +65,7 @@ fun AdhkarListScreen(
     onBack: (() -> Unit)? = null
 ) {
     val categories by viewModel.adhkarCategories.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
     val otherCategories = remember(categories, searchQuery) {
@@ -270,6 +276,7 @@ fun AdhkarDetailScreen(
     onBack: () -> Unit
 ) {
     val categories by viewModel.adhkarCategories.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     val rawItems by viewModel.observeAdhkarItems(categoryId).collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
@@ -387,14 +394,34 @@ fun AdhkarDetailScreen(
     }
     BackHandler(enabled = isFullScreen) { isFullScreen = false }
 
+    fun vibrateDhikr(completed: Boolean) {
+        if (!settings.vibrationEnabled) return
+        runCatching {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+            val ms = if (completed) 55L else 22L
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(ms)
+            }
+        }
+    }
+
     fun handleCardTap(card: DisplayDhikrCard) {
         val currentTapped = progressMap[card.uniqueKey] ?: 0
         if (currentTapped >= card.repeatCount) return
         val nextTapped = currentTapped + 1
+        val isDone = nextTapped >= card.repeatCount
+        vibrateDhikr(isDone)
         progressMap[card.uniqueKey] = nextTapped
-        if (nextTapped >= card.repeatCount) {
+        if (isDone) {
             scope.launch {
-                // Brief 130ms visual checkmark beat before silky slide-out disappearance
                 delay(130)
                 hiddenMap[card.uniqueKey] = true
             }

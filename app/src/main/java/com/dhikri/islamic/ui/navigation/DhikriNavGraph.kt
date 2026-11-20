@@ -241,7 +241,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     )
                 }
                 composable(Routes.RECITATIONS) {
-                    AudioRecitationsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                    RecitationsHubScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
                 }
                 composable(Routes.RUQYAH) {
                     RuqyahScreen(onBack = { navController.popBackStack() })

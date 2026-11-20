@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,12 +59,11 @@ private object TasbihBeadSoundPlayer {
     private val beadSamples: ShortArray by lazy { synthesizeBeadClick() }
 
     private fun synthesizeBeadClick(): ShortArray {
-        val durationSec = 0.028 // crisp 28ms wooden/amber bead knock
+        val durationSec = 0.028
         val count = (SAMPLE_RATE * durationSec).toInt()
         val buf = ShortArray(count)
         for (i in 0 until count) {
             val t = i.toDouble() / SAMPLE_RATE
-            // Warm wooden fundamental + subtle bright bead click transient
             val env1 = exp(-t * 165.0)
             val env2 = exp(-t * 420.0)
             val f1 = 760.0 + 280.0 * exp(-t * 220.0)
@@ -122,6 +122,16 @@ fun TasbihScreen(
     val presets by viewModel.tasbihPresets.collectAsState()
     val todayTotal by viewModel.todayTasbihTotal.collectAsState()
     val settings by viewModel.settings.collectAsState()
+
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val bgGradient = if (isDarkTheme) {
+        listOf(Color(0xFF071428), EmeraldDark, Color(0xFF132D54))
+    } else {
+        listOf(Color(0xFFF8F4EC), Color(0xFFF0EADF), Color(0xFFE7DFD0))
+    }
+    val cardBg = if (isDarkTheme) Color(0xFF122847).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.96f)
+    val primaryText = if (isDarkTheme) Color.White else EmeraldDark
+    val goldAccent = if (isDarkTheme) SoftGold else Color(0xFF9C7826)
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -183,11 +193,7 @@ fun TasbihScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF071428), EmeraldDark, Color(0xFF132D54))
-                )
-            )
+            .background(Brush.verticalGradient(colors = bgGradient))
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -225,7 +231,6 @@ fun TasbihScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Horizontal Dhikr Phrase Chips
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -238,10 +243,10 @@ fun TasbihScreen(
                                 viewModel.setLastTasbihPresetId(preset.id)
                             },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (selected) SoftGold else Color(0xFF152D4F).copy(alpha = 0.85f),
+                            color = if (selected) SoftGold else cardBg,
                             border = BorderStroke(
                                 1.dp,
-                                if (selected) Color(0xFFFFE599) else SoftGold.copy(alpha = 0.35f)
+                                if (selected) Color(0xFFFFE599) else SoftGold.copy(alpha = 0.45f)
                             )
                         ) {
                             Row(
@@ -251,7 +256,7 @@ fun TasbihScreen(
                             ) {
                                 Text(
                                     text = preset.phraseArabic,
-                                    color = if (selected) Color(0xFF1F1604) else Color.White,
+                                    color = if (selected) Color(0xFF1F1604) else primaryText,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp,
                                     maxLines = 1,
@@ -263,7 +268,7 @@ fun TasbihScreen(
                                 ) {
                                     Text(
                                         text = "${preset.targetCount}",
-                                        color = if (selected) Color(0xFF1F1604) else SoftGold,
+                                        color = if (selected) Color(0xFF1F1604) else goldAccent,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -274,37 +279,33 @@ fun TasbihScreen(
                     }
                 }
 
-                // 2. Active Dhikr Banner
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFF122847).copy(alpha = 0.85f),
-                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
+                    color = cardBg,
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = activePreset?.phraseArabic ?: "سبحان الله",
-                            color = Color.White,
+                            color = primaryText,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "الهدف: $target  •  الدورات المكتملة: $completedRounds",
-                            color = SoftGold,
+                            color = goldAccent,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
 
-                // 3. Centerpiece Golden Bezel Interactive Tasbih Medallion
                 Box(
                     modifier = Modifier
                         .size(258.dp)
@@ -329,16 +330,14 @@ fun TasbihScreen(
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize().padding(10.dp)) {
                         drawArc(
-                            color = Color.White.copy(alpha = 0.12f),
+                            color = if (isDarkTheme) Color.White.copy(alpha = 0.12f) else EmeraldDark.copy(alpha = 0.12f),
                             startAngle = -90f,
                             sweepAngle = 360f,
                             useCenter = false,
                             style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
                         )
                         drawArc(
-                            brush = Brush.sweepGradient(
-                                listOf(SoftGold, Color(0xFFFFE599), Color(0xFFB88A1E), SoftGold)
-                            ),
+                            brush = Brush.sweepGradient(listOf(SoftGold, Color(0xFFFFE599), Color(0xFFB88A1E), SoftGold)),
                             startAngle = -90f,
                             sweepAngle = 360f * animatedProgress,
                             useCenter = false,
@@ -363,59 +362,36 @@ fun TasbihScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Text(
-                                text = "$current",
-                                color = Color.White,
-                                fontSize = 56.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                text = "اضغط للتسبيح",
-                                color = SoftGold,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text(text = "$current", color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(text = "اضغط للتسبيح", color = SoftGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
 
-                // 4. Glass Control Buttons (- | إعادة | +)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TasbihGlassButton(
-                        icon = Icons.Default.Remove,
-                        label = "إنقاص",
-                        onClick = { activePreset?.let { viewModel.decrementTasbih(it) } }
-                    )
-                    TasbihGlassButton(
-                        icon = Icons.Default.Refresh,
-                        label = "تصفير",
-                        highlighted = true,
-                        onClick = { activePreset?.let { viewModel.resetTasbih(it) } }
-                    )
-                    TasbihGlassButton(
-                        icon = Icons.Default.Add,
-                        label = "زيادة",
-                        onClick = {
-                            activePreset?.let { p ->
-                                triggerFeedback((p.currentCount + 1) % target == 0)
-                                viewModel.incrementTasbih(p)
-                            }
+                    TasbihGlassButton(Icons.Default.Remove, "إنقاص", cardBg, primaryText, goldAccent) {
+                        activePreset?.let { viewModel.decrementTasbih(it) }
+                    }
+                    TasbihGlassButton(Icons.Default.Refresh, "تصفير", cardBg, primaryText, goldAccent, highlighted = true) {
+                        activePreset?.let { viewModel.resetTasbih(it) }
+                    }
+                    TasbihGlassButton(Icons.Default.Add, "زيادة", cardBg, primaryText, goldAccent) {
+                        activePreset?.let { p ->
+                            triggerFeedback((p.currentCount + 1) % target == 0)
+                            viewModel.incrementTasbih(p)
                         }
-                    )
+                    }
                 }
 
-                // 5. Daily Goal & Total Summary Card
                 val goalProgress = (todayTotal.toFloat() / settings.dailyTasbihGoal.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showGoalDialog = true },
+                    modifier = Modifier.fillMaxWidth().clickable { showGoalDialog = true },
                     shape = RoundedCornerShape(18.dp),
-                    color = Color(0xFF122847).copy(alpha = 0.90f),
+                    color = cardBg,
                     border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
                 ) {
                     Column(
@@ -427,27 +403,14 @@ fun TasbihScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "مجموع اليوم: $todayTotal تسبيحة",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "الهدف اليومي: ${settings.dailyTasbihGoal} ✎",
-                                color = SoftGold,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp
-                            )
+                            Text("مجموع اليوم: $todayTotal تسبيحة", color = primaryText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("الهدف اليومي: ${settings.dailyTasbihGoal} ✎", color = goldAccent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                         }
                         LinearProgressIndicator(
                             progress = { goalProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(4.dp)),
+                            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(4.dp)),
                             color = SoftGold,
-                            trackColor = Color.White.copy(alpha = 0.16f)
+                            trackColor = if (isDarkTheme) Color.White.copy(alpha = 0.16f) else EmeraldDark.copy(alpha = 0.14f)
                         )
                     }
                 }
@@ -461,18 +424,8 @@ fun TasbihScreen(
             title = { Text("إضافة ذكر مخصص", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = customPhrase,
-                        onValueChange = { customPhrase = it },
-                        label = { Text("صيغة الذكر") },
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = customTarget,
-                        onValueChange = { customTarget = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("العدد المستهدف (مثلاً 33 أو 100)") },
-                        singleLine = true
-                    )
+                    OutlinedTextField(value = customPhrase, onValueChange = { customPhrase = it }, label = { Text("صيغة الذكر") }, singleLine = true)
+                    OutlinedTextField(value = customTarget, onValueChange = { customTarget = it.filter { ch -> ch.isDigit() } }, label = { Text("العدد المستهدف (مثلاً 33 أو 100)") }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -485,9 +438,7 @@ fun TasbihScreen(
                     }
                 }) { Text("إضافة") }
             },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("إلغاء") }
-            }
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("إلغاء") } }
         )
     }
 
@@ -496,12 +447,7 @@ fun TasbihScreen(
             onDismissRequest = { showGoalDialog = false },
             title = { Text("تعديل الهدف اليومي للتسبيح", fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(
-                    value = goalInput,
-                    onValueChange = { goalInput = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("عدد التسبيحات اليومي") },
-                    singleLine = true
-                )
+                OutlinedTextField(value = goalInput, onValueChange = { goalInput = it.filter { ch -> ch.isDigit() } }, label = { Text("عدد التسبيحات اليومي") }, singleLine = true)
             },
             confirmButton = {
                 Button(onClick = {
@@ -509,9 +455,7 @@ fun TasbihScreen(
                     showGoalDialog = false
                 }) { Text("حفظ") }
             },
-            dismissButton = {
-                TextButton(onClick = { showGoalDialog = false }) { Text("إلغاء") }
-            }
+            dismissButton = { TextButton(onClick = { showGoalDialog = false }) { Text("إلغاء") } }
         )
     }
 }
@@ -520,24 +464,25 @@ fun TasbihScreen(
 private fun TasbihGlassButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    cardBg: Color,
+    textColor: Color,
+    iconTint: Color,
     highlighted: Boolean = false,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .width(96.dp)
-            .clickable(onClick = onClick),
+        modifier = Modifier.width(96.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = if (highlighted) SoftGold.copy(alpha = 0.20f) else Color(0xFF152D4F).copy(alpha = 0.85f),
-        border = BorderStroke(1.dp, SoftGold.copy(alpha = if (highlighted) 0.85f else 0.38f))
+        color = if (highlighted) SoftGold.copy(alpha = 0.22f) else cardBg,
+        border = BorderStroke(1.dp, SoftGold.copy(alpha = if (highlighted) 0.85f else 0.42f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = label, tint = SoftGold, modifier = Modifier.size(18.dp))
-            Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(18.dp))
+            Text(label, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

@@ -1,34 +1,29 @@
 package com.dhikri.islamic.ui.screens
 
-import com.dhikri.islamic.ui.components.DhikriCompactTopBar
-
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
-import android.net.Uri
 import android.speech.tts.TextToSpeech
-import java.util.Locale
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -39,11 +34,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.data.local.entity.AyahEntity
 import com.dhikri.islamic.data.local.entity.TafsirEntryEntity
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
+import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.HafsFontFamily
-import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.theme.ReadingThemes
+import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.theme.readingThemeByKey
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +64,6 @@ fun MushafReaderScreen(
     val surahs by viewModel.surahs.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val favoriteAyahs by viewModel.favoriteAyahs.collectAsState()
-    val tafsirBooks by viewModel.tafsirBooks.collectAsState()
 
     var selectedAyah by remember { mutableStateOf<AyahEntity?>(null) }
     var selectedTafsirEntries by remember { mutableStateOf<List<TafsirEntryEntity>>(emptyList()) }
@@ -72,14 +75,15 @@ fun MushafReaderScreen(
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
 
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val currentView = LocalView.current
+    val palette = readingThemeByKey(settings.readingThemeKey)
+
     DisposableEffect(currentView) {
         currentView.keepScreenOn = true
         onDispose { currentView.keepScreenOn = false }
     }
-    val clipboard = LocalClipboardManager.current
-
-    val palette = readingThemeByKey(settings.readingThemeKey)
 
     DisposableEffect(context) {
         onDispose {
@@ -112,40 +116,84 @@ fun MushafReaderScreen(
         runCatching { tts?.stop() }
     }
 
+    // Fast cached single-ayah pronunciation (64kbps -> ~35KB, downloads in ~0.3s and plays from local cache!)
     fun playAyahPronunciation(surahId: Int, ayahNumber: Int) {
         stopAllAudio()
         val s3 = "%03d".format(surahId)
         val a3 = "%03d".format(ayahNumber)
-        val url = "https://everyayah.com/data/Husary_128kbps/$s3$a3.mp3"
-        audioStatusText = "جاري تشغيل النطق المجوّد (الشيخ الحصري)..."
-        val mp = MediaPlayer()
-        runCatching {
-            mp.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            mp.setDataSource(context, Uri.parse(url), mapOf("User-Agent" to "Mozilla/5.0 (Android)"))
-            mp.setOnPreparedListener {
-                it.start()
-                isPlayingAyahAudio = true
-                audioStatusText = "يُقرأ الآن بصوت الشيخ الحصري (المعلّم)"
-            }
-            mp.setOnCompletionListener {
-                isPlayingAyahAudio = false
-                audioStatusText = null
-            }
-            mp.setOnErrorListener { _, _, _ ->
-                isPlayingAyahAudio = false
-                audioStatusText = "تحتاج اتصال إنترنت لسماع التلاوة المجوّدة للآية"
+        audioStatusText = "جاري تجهيز النطق المجوّد..."
+
+        scope.launch {
+            val cacheDir = File(context.cacheDir, "ayah_audio").apply { mkdirs() }
+            val localFile = File(cacheDir, "${s3}_${a3}.mp3")
+
+            val ready = if (localFile.exists() && localFile.length() > 1500L) {
                 true
+            } else {
+                withContext(Dispatchers.IO) {
+                    val candidates = listOf(
+                        "https://everyayah.com/data/Husary_64kbps/$s3$a3.mp3",
+                        "https://everyayah.com/data/Husary_128kbps/$s3$a3.mp3",
+                        "https://everyayah.com/data/Alafasy_64kbps/$s3$a3.mp3"
+                    )
+                    var success = false
+                    for (urlStr in candidates) {
+                        val downloaded = runCatching {
+                            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                                connectTimeout = 7_000
+                                readTimeout = 9_000
+                                instanceFollowRedirects = true
+                                setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
+                            }
+                            if (conn.responseCode == 200) {
+                                conn.inputStream.use { inp ->
+                                    localFile.outputStream().use { out -> inp.copyTo(out) }
+                                }
+                                conn.disconnect()
+                                localFile.length() > 1500L
+                            } else {
+                                conn.disconnect()
+                                false
+                            }
+                        }.getOrDefault(false)
+                        if (downloaded) {
+                            success = true
+                            break
+                        }
+                    }
+                    success
+                }
             }
-            mp.prepareAsync()
-            mediaPlayer = mp
-        }.onFailure {
-            isPlayingAyahAudio = false
-            audioStatusText = "تعذّر تشغيل الصوت"
+
+            if (!ready) {
+                isPlayingAyahAudio = false
+                audioStatusText = "تحتاج اتصال إنترنت سريع لسماع نطق الآية"
+                return@launch
+            }
+
+            runCatching {
+                val mp = MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    setDataSource(localFile.absolutePath)
+                    prepare()
+                    setOnCompletionListener {
+                        isPlayingAyahAudio = false
+                        audioStatusText = null
+                    }
+                    start()
+                }
+                mediaPlayer = mp
+                isPlayingAyahAudio = true
+                audioStatusText = "يُقرأ الآن بصوت الشيخ الحصري"
+            }.onFailure {
+                isPlayingAyahAudio = false
+                audioStatusText = "تعذّر تشغيل الصوت"
+            }
         }
     }
 
@@ -172,7 +220,10 @@ fun MushafReaderScreen(
     BackHandler(enabled = selectedAyah != null || showThemePicker || isFullScreen) {
         when {
             showThemePicker -> showThemePicker = false
-            selectedAyah != null -> selectedAyah = null
+            selectedAyah != null -> {
+                stopAllAudio()
+                selectedAyah = null
+            }
             isFullScreen -> isFullScreen = false
         }
     }
@@ -211,6 +262,7 @@ fun MushafReaderScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .navigationBarsPadding()
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -232,167 +284,133 @@ fun MushafReaderScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(ayahs, key = { it.id }) { ayah ->
-                val surah = surahs.firstOrNull { it.id == ayah.surahId }
-                if (ayah.ayahNumber == 1 && surah != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = palette.surface),
-                        border = BorderStroke(1.dp, palette.accentColor.copy(alpha = 0.45f)),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp),
+                contentPadding = PaddingValues(vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(ayahs, key = { it.id }) { ayah ->
+                    val surah = surahs.firstOrNull { it.id == ayah.surahId }
+                    if (ayah.ayahNumber == 1 && surah != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = palette.surface),
+                            border = BorderStroke(1.dp, palette.accentColor.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("سورة ${surah.nameArabic}", style = MaterialTheme.typography.titleLarge, color = palette.accentColor)
+                            Column(
+                                Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("سورة ${surah.nameArabic}", style = MaterialTheme.typography.titleLarge, color = palette.accentColor)
+                                Text(
+                                    "${surah.revelationType} • ${surah.ayahCount} آية",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = palette.textColor.copy(alpha = 0.75f)
+                                )
+                            }
+                        }
+                        if (ayah.surahId != 1 && ayah.surahId != 9) {
                             Text(
-                                "${surah.revelationType} • ${surah.ayahCount} آية",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = palette.textColor.copy(alpha = 0.75f)
+                                text = "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+                                fontFamily = HafsFontFamily,
+                                fontSize = (settings.mushafFontSizeSp - 2f).sp,
+                                color = palette.accentColor,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             )
                         }
                     }
-                    if (ayah.surahId != 1 && ayah.surahId != 9) {
-                        Text(
-                            text = "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
-                            fontFamily = HafsFontFamily,
-                            fontSize = (settings.mushafFontSizeSp - 2f).sp,
-                            color = palette.accentColor,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        )
-                    }
-                }
 
-                val isFav = favoriteAyahs.any { it.ayahId == ayah.id }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedAyah = ayah }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "${ayah.textHafsV20} ﴿${ayah.ayahNumber}﴾" + if (ayah.isSajdah == 1) " ۩" else "",
-                        fontFamily = HafsFontFamily,
-                        fontSize = settings.mushafFontSizeSp.sp,
-                        lineHeight = (settings.mushafFontSizeSp * 1.85f).sp,
-                        color = palette.textColor,
-                        textAlign = TextAlign.Justify,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (ayah.isSajdah == 1 || isFav) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (ayah.isSajdah == 1) {
-                                Text(
-                                    "موضع سجدة (${ayah.sajdahType ?: "مستحبة"})",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = palette.accentColor
-                                )
-                            }
-                            if (isFav) {
-                                Text("★ في المفضلة", style = MaterialTheme.typography.labelMedium, color = palette.accentColor)
+                    val isFav = favoriteAyahs.any { it.ayahId == ayah.id }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedAyah = ayah }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${ayah.textHafsV20} ﴿${ayah.ayahNumber}﴾" + if (ayah.isSajdah == 1) " ۩" else "",
+                            fontFamily = HafsFontFamily,
+                            fontSize = settings.mushafFontSizeSp.sp,
+                            lineHeight = (settings.mushafFontSizeSp * 1.9f).sp,
+                            color = palette.textColor,
+                            textAlign = TextAlign.Justify,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (isFav || ayah.isSajdah == 1) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (ayah.isSajdah == 1) {
+                                    Text("۩ موضع سجدة", style = MaterialTheme.typography.labelMedium, color = palette.accentColor)
+                                }
+                                if (isFav) {
+                                    Text("★ في المفضلة", style = MaterialTheme.typography.labelMedium, color = palette.accentColor)
+                                }
                             }
                         }
                     }
+                    HorizontalDivider(color = palette.dividerColor.copy(alpha = 0.55f))
                 }
-                HorizontalDivider(color = palette.dividerColor.copy(alpha = 0.55f))
             }
-        }
-        if (isFullScreen) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(10.dp)
-                    .clickable { isFullScreen = false },
-                shape = RoundedCornerShape(14.dp),
-                color = com.dhikri.islamic.ui.theme.EmeraldDark.copy(alpha = 0.82f),
-                border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+
+            if (isFullScreen) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(10.dp)
+                        .clickable { isFullScreen = false },
+                    shape = RoundedCornerShape(14.dp),
+                    color = EmeraldDark.copy(alpha = 0.82f),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f))
                 ) {
-                    Icon(Icons.Default.FullscreenExit, contentDescription = "إظهار الأشرطة", tint = SoftGold, modifier = Modifier.size(16.dp))
-                    Text("إظهار الأشرطة", color = androidx.compose.ui.graphics.Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.FullscreenExit, contentDescription = "إظهار الأشرطة", tint = SoftGold, modifier = Modifier.size(16.dp))
+                        Text("إظهار الأشرطة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        }
         }
     }
 
-    // Eye-Comfort Reading Theme Picker Sheet
     if (showThemePicker) {
         ModalBottomSheet(onDismissRequest = { showThemePicker = false }) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "اختر لون القراءة لراحة العين",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text("اختر لون القراءة لراحة العين", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 ReadingThemes.forEach { theme ->
                     val isSelected = theme.key == palette.key
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setReadingTheme(theme.key)
-                                showThemePicker = false
-                            },
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            viewModel.setReadingTheme(theme.key)
+                            showThemePicker = false
+                        },
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = theme.background),
-                        border = BorderStroke(
-                            width = if (isSelected) 2.5.dp else 1.dp,
-                            color = if (isSelected) theme.accentColor else theme.dividerColor
-                        )
+                        border = BorderStroke(if (isSelected) 2.5.dp else 1.dp, if (isSelected) theme.accentColor else theme.dividerColor)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(theme.surface)
-                                        .border(2.dp, theme.accentColor, CircleShape)
-                                )
-                                Column {
-                                    Text(theme.labelArabic, color = theme.textColor, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
-                                        fontFamily = HafsFontFamily,
-                                        color = theme.textColor.copy(alpha = 0.85f),
-                                        fontSize = 15.sp
-                                    )
-                                }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(Modifier.size(22.dp).clip(CircleShape).background(theme.accentColor))
+                                Text(theme.labelArabic, color = theme.textColor, fontWeight = FontWeight.Bold)
                             }
-                            if (isSelected) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = "مُختار", tint = theme.accentColor)
-                            }
+                            if (isSelected) Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.accentColor)
                         }
                     }
                 }
@@ -400,143 +418,103 @@ fun MushafReaderScreen(
         }
     }
 
-    // Ayah Actions + Tafsir & Word Meanings Sheet
     selectedAyah?.let { ayah ->
-        val surahName = surahs.firstOrNull { it.id == ayah.surahId }?.nameArabic ?: "${ayah.surahId}"
+        val surahName = surahs.firstOrNull { it.id == ayah.surahId }?.nameArabic ?: ""
         val isFav = favoriteAyahs.any { it.ayahId == ayah.id }
-        ModalBottomSheet(onDismissRequest = { stopAllAudio(); selectedAyah = null }) {
+
+        ModalBottomSheet(
+            onDismissRequest = {
+                stopAllAudio()
+                selectedAyah = null
+            }
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "سورة $surahName — الآية ${ayah.ayahNumber}",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Text("سورة $surahName — آية ${ayah.ayahNumber}", style = MaterialTheme.typography.titleLarge, color = SoftGold)
+                Text(ayah.textHafsV20, fontFamily = HafsFontFamily, fontSize = 22.sp, lineHeight = 38.sp)
+
+                // Fast Play Pronunciation Button
+                Button(
+                    onClick = {
+                        if (isPlayingAyahAudio) stopAllAudio()
+                        else playAyahPronunciation(ayah.surahId, ayah.ayahNumber)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldDark, contentColor = SoftGold)
                 ) {
-                    AssistChip(
-                        onClick = {
-                            if (isPlayingAyahAudio) stopAllAudio()
-                            else playAyahPronunciation(ayah.surahId, ayah.ayahNumber)
-                        },
-                        label = { Text(if (isPlayingAyahAudio) "إيقاف النطق" else "اسمع النطق") },
-                        leadingIcon = {
-                            Icon(
-                                if (isPlayingAyahAudio) Icons.Default.StopCircle else Icons.Default.VolumeUp,
-                                contentDescription = null
-                            )
-                        }
-                    )
-                    AssistChip(
-                        onClick = {
-                            viewModel.addBookmark(ayah.surahId, ayah.ayahNumber, ayah.pageNumber, "سورة $surahName : ${ayah.ayahNumber}")
-                        },
-                        label = { Text("علامة") },
-                        leadingIcon = { Icon(Icons.Default.BookmarkAdd, contentDescription = null) }
-                    )
-                    AssistChip(
+                    Icon(if (isPlayingAyahAudio) Icons.Default.StopCircle else Icons.Default.VolumeUp, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (isPlayingAyahAudio) "إيقاف النطق" else "اسمع النطق المجوّد للآية", fontWeight = FontWeight.Bold)
+                }
+
+                audioStatusText?.let { msg ->
+                    Text(msg, fontSize = 12.sp, color = SoftGold, fontWeight = FontWeight.SemiBold)
+                }
+
+                // Quick actions row
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { viewModel.addBookmark(ayah.surahId, ayah.ayahNumber, currentPage, "سورة $surahName (آية ${ayah.ayahNumber})") },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("علامة", fontSize = 12.sp) }
+                    OutlinedButton(
                         onClick = { viewModel.toggleFavoriteAyah(ayah, isFav) },
-                        label = { Text(if (isFav) "إزالة مفضلة" else "مفضلة") },
-                        leadingIcon = { Icon(if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null) }
-                    )
-                    AssistChip(
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (isFav) "إزالة مفضلة" else "مفضلة", fontSize = 12.sp) }
+                    OutlinedButton(
+                        onClick = { clipboard.setText(AnnotatedString("${ayah.textHafsV20} [سورة $surahName: ${ayah.ayahNumber}]")) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("نسخ", fontSize = 12.sp) }
+                    OutlinedButton(
                         onClick = {
-                            clipboard.setText(AnnotatedString("${ayah.textHafsV20} [سورة $surahName: ${ayah.ayahNumber}]"))
-                        },
-                        label = { Text("نسخ") },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
-                    )
-                    AssistChip(
-                        onClick = {
-                            val shareText = "﴿${ayah.textHafsV20}﴾\n[سورة $surahName — الآية ${ayah.ayahNumber}]\nعبر تطبيق ذِكري"
-                            val intent = Intent(Intent.ACTION_SEND).apply {
+                            val share = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                putExtra(Intent.EXTRA_TEXT, "﴿${ayah.textHafsV20}﴾ [سورة $surahName: ${ayah.ayahNumber}]\nعبر تطبيق ذِكري")
                             }
-                            context.startActivity(Intent.createChooser(intent, "مشاركة الآية"))
+                            context.startActivity(Intent.createChooser(share, "مشاركة الآية"))
                         },
-                        label = { Text("مشاركة") },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
-                    )
+                        modifier = Modifier.weight(1f)
+                    ) { Text("مشاركة", fontSize = 12.sp) }
                 }
 
                 HorizontalDivider()
-                audioStatusText?.let { status ->
-                    Text(status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                }
-                Text("التفسير ومعاني الكلمات", style = MaterialTheme.typography.titleMedium)
 
                 if (selectedTafsirEntries.isEmpty()) {
-                    Text(
-                        "لم يتم تنزيل حزمة التفسير الميسر أو معاني الكلمات بعد. يمكنك تنزيلهما من مركز التنزيلات (المصدر الرسمي: QuranEnc.com).",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Button(onClick = {
+                    Text("التفسير غير محمّل لهذه الآية. يمكنك تنزيله من مركز التنزيلات.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = {
+                        stopAllAudio()
                         selectedAyah = null
                         onOpenDownloads()
-                    }) {
-                        Text("فتح مركز التنزيلات")
-                    }
+                    }) { Text("فتح مركز التنزيلات") }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 320.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(selectedTafsirEntries) { entry ->
-                            val book = tafsirBooks.firstOrNull { it.bookKey == entry.bookKey }
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        book?.titleArabic ?: entry.bookKey,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        "المؤلف: ${book?.authorArabic ?: "—"} • المصدر: ${book?.publisher ?: "QuranEnc.com"} • الإصدار: ${book?.version ?: "—"}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (entry.textContent.isBlank()) {
-                                        Text(
-                                            "لا توجد مفردات غريبة مشروحة لهذه الآية في هذا الكتاب.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    } else {
-                                        Text(entry.textContent, style = MaterialTheme.typography.bodyLarge)
-                                        if (entry.bookKey == "arabic_seraj") {
-                                            TextButton(
-                                                onClick = {
-                                                    speakArabicMeaning(entry.textContent)
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text("استماع لشرح الكلمات الصعبة (أوفلاين)")
-                                            }
-                                        }
-                                    }
-                                    entry.footnotes?.takeIf { it.isNotBlank() }?.let { notes ->
-                                        Text(
-                                            notes,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                    selectedTafsirEntries.forEach { entry ->
+                        val label = when (entry.bookKey) {
+                            "arabic_moyassar" -> "التفسير الميسر"
+                            "arabic_seraj" -> "معاني الكلمات (السراج)"
+                            "arabic_mokhtasar" -> "المختصر في التفسير"
+                            else -> entry.bookKey
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.3f))
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(label, fontWeight = FontWeight.Bold, color = SoftGold)
+                                    IconButton(onClick = { speakArabicMeaning(entry.textContent) }, modifier = Modifier.size(30.dp)) {
+                                        Icon(Icons.Default.RecordVoiceOver, contentDescription = "نطق الشرح", tint = SoftGold, modifier = Modifier.size(18.dp))
                                     }
                                 }
+                                Text(entry.textContent, lineHeight = 24.sp)
                             }
                         }
                     }

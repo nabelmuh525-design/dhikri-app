@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -180,14 +181,23 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
         label = "qibla_dial"
     )
 
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val alignedAccent = if (isAligned) Color(0xFF4ADE80) else SoftGold
+    val bgGradient = if (isDarkTheme) {
+        listOf(Color(0xFF061121), EmeraldDark, Color(0xFF132D54))
+    } else {
+        listOf(Color(0xFFF8F4EC), Color(0xFFF0EADF), Color(0xFFE7DFD0))
+    }
+    val cardBg = if (isDarkTheme) Color(0xFF122847).copy(alpha = 0.90f) else Color.White.copy(alpha = 0.95f)
+    val cardText = if (isDarkTheme) Color.White else EmeraldDark
+    val cardSubText = if (isDarkTheme) Color.White.copy(alpha = 0.72f) else Color(0xFF4A5568)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFF061121), EmeraldDark, Color(0xFF132D54))
+                    colors = bgGradient
                 )
             )
     ) {
@@ -219,7 +229,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                         Surface(
                             modifier = Modifier.clickable { selectedCity = city },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (selected) SoftGold else Color(0xFF152D4F).copy(alpha = 0.85f),
+                            color = if (selected) SoftGold else cardBg,
                             border = BorderStroke(
                                 1.dp,
                                 if (selected) Color(0xFFFFE8A3) else SoftGold.copy(alpha = 0.35f)
@@ -240,7 +250,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                                 }
                                 Text(
                                     text = city.nameArabic,
-                                    color = if (selected) Color(0xFF1F1604) else Color.White,
+                                    color = if (selected) Color(0xFF1F1604) else cardText,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp
                                 )
@@ -252,7 +262,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                 // 2. Live Alignment Status Pill
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = if (isAligned) Color(0xFF14472A).copy(alpha = 0.9f) else Color(0xFF122847).copy(alpha = 0.9f),
+                    color = if (isAligned) Color(0xFF14472A).copy(alpha = 0.92f) else cardBg,
                     border = BorderStroke(1.2.dp, alignedAccent.copy(alpha = 0.85f)),
                     shadowElevation = 6.dp
                 ) {
@@ -274,7 +284,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                                 diffToQibla > 0 -> "أدِر الهاتف قليلاً نحو اليمين (${abs(diffToQibla).toInt()}°)"
                                 else -> "أدِر الهاتف قليلاً نحو اليسار (${abs(diffToQibla).toInt()}°)"
                             },
-                            color = Color.White,
+                            color = if (isAligned) Color.White else cardText,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -444,7 +454,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    color = Color(0xFF122847).copy(alpha = 0.90f),
+                    color = cardBg,
                     border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.4f))
                 ) {
                     Column(
@@ -458,7 +468,7 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("اتجاه القبلة", color = SoftGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${qiblaBearing.toInt()}°", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("${qiblaBearing.toInt()}°", color = cardText, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                             }
                             Box(
                                 modifier = Modifier
@@ -468,12 +478,12 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                             )
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("اتجاه الهاتف", color = SoftGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${azimuthDeg.toInt()}°", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("${azimuthDeg.toInt()}°", color = cardText, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                             }
                         }
                         Text(
                             text = "لأفضل دقة، ضع الهاتف بشكل مستوٍ وأبعده عن المعادن والمغناطيس",
-                            color = Color.White.copy(alpha = 0.72f),
+                            color = cardSubText,
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
                         )

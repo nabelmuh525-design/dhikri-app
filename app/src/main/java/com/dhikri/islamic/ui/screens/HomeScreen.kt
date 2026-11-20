@@ -251,7 +251,7 @@ fun HomeScreen(
                     .padding(horizontal = 18.dp)
                     .shadow(6.dp, RoundedCornerShape(22.dp)),
                 shape = RoundedCornerShape(22.dp),
-                color = Color(0xFFFFF8E8),
+                color = if (effectiveDark) Color(0xFF132642) else Color(0xFFFFF8E8),
                 border = BorderStroke(1.2.dp, SoftGold.copy(alpha = 0.75f))
             ) {
                 Column(
@@ -264,7 +264,7 @@ fun HomeScreen(
                         text = "﴿ أَلَا بِذِكۡرِ ٱللَّهِ تَطۡمَئِنُّ ٱلۡقُلُوبُ ﴾",
                         fontFamily = HafsFontFamily,
                         fontSize = 22.sp,
-                        color = Color(0xFF2B2112),
+                        color = if (effectiveDark) Color(0xFFFFF3D1) else Color(0xFF2B2112),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -641,8 +641,8 @@ fun HomeScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 4.dp),
             shape = RoundedCornerShape(18.dp),
-            color = Color(0xFFF5EFE3),
-            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.4f))
+            color = if (effectiveDark) Color(0xFF132642) else Color(0xFFF5EFE3),
+            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
         ) {
             Row(
                 modifier = Modifier
@@ -654,14 +654,14 @@ fun HomeScreen(
                 Icon(
                     imageVector = Icons.Default.FavoriteBorder,
                     contentDescription = null,
-                    tint = EmeraldDark,
+                    tint = if (effectiveDark) SoftGold else EmeraldDark,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "كل ذكر لله .. يقرّبك من الله",
                     style = MaterialTheme.typography.titleMedium,
-                    color = EmeraldDark
+                    color = if (effectiveDark) Color.White else EmeraldDark
                 )
                 Spacer(Modifier.width(8.dp))
                 Icon(

@@ -1,7 +1,5 @@
 package com.dhikri.islamic.ui.screens
 
-import com.dhikri.islamic.ui.components.DhikriCompactTopBar
-
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -13,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -32,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.BuildConfig
+import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.EmeraldPrimary
 import com.dhikri.islamic.ui.theme.ReadingThemes
@@ -57,117 +55,61 @@ fun MoreScreen(
     val context = LocalContext.current
 
     Scaffold(
-        topBar = {
-            DhikriCompactTopBar(title = "القائمة والأدوات", onBack = onBack)
-        }
+        topBar = { DhikriCompactTopBar(title = "القائمة والأدوات", onBack = onBack) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Section 1: العبادات (Modern 2-column grid tiles)
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GroupHeader("العبادات")
+                    ModernSectionHeader("العبادات")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ModernGridTile(
-                            title = "ختمة القرآن",
-                            subtitle = "خطة ومتابعة يومية",
-                            icon = Icons.Default.AutoAwesome,
-                            colors = listOf(Color(0xFF1A4378), EmeraldDark),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenKhatmah
-                        )
-                        ModernGridTile(
-                            title = "الاستماع للقرآن",
-                            subtitle = "5 قراء مع التحميل",
-                            icon = Icons.Default.Headphones,
-                            colors = listOf(Color(0xFF28598A), Color(0xFF123254)),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenRecitations
-                        )
+                        ModernFeatureTile("ختمة القرآن", "متابعة الورد اليومي", Icons.Default.MenuBook, listOf(Color(0xFF1A437A), EmeraldDark), Modifier.weight(1f), onOpenKhatmah)
+                        ModernFeatureTile("الاستماع للقرآن", "10 قراء وتلاوات أوفلاين", Icons.Default.Headphones, listOf(Color(0xFF1F6A8A), Color(0xFF0E3E56)), Modifier.weight(1f), onOpenRecitations)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ModernGridTile(
-                            title = "الرُّقية الشرعية",
-                            subtitle = "آيات وأدعية موثقة",
-                            icon = Icons.Default.HealthAndSafety,
-                            colors = listOf(Color(0xFF2E6B5E), Color(0xFF134036)),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenRuqyah
-                        )
-                        ModernGridTile(
-                            title = "أسماء الله الحسنى",
-                            subtitle = "99 اسماً ومعانيها",
-                            icon = Icons.Default.Stars,
-                            colors = listOf(Color(0xFF8C6924), Color(0xFF594010)),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenAsmaUlHusna
-                        )
+                        ModernFeatureTile("الرُّقية الشرعية", "آيات وأدعية موثقة", Icons.Default.HealthAndSafety, listOf(Color(0xFF2E6B4F), Color(0xFF163D2B)), Modifier.weight(1f), onOpenRuqyah)
+                        ModernFeatureTile("أسماء الله الحسنى", "الأسماء الـ 99 ومعانيها", Icons.Default.AutoAwesome, listOf(Color(0xFF8C6B1F), Color(0xFF4F3A0C)), Modifier.weight(1f), onOpenAsmaUlHusna)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ModernGridTile(
-                            title = "حصن المسلم",
-                            subtitle = "134 باباً مصنفاً",
-                            icon = Icons.Default.MenuBook,
-                            colors = listOf(Color(0xFF4F468C), Color(0xFF2B2459)),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenHisnAlMuslim
-                        )
-                        ModernGridTile(
-                            title = "عداد التسبيح",
-                            subtitle = "سبحة وأهداف يومية",
-                            icon = Icons.Default.TouchApp,
-                            colors = listOf(Color(0xFF1E5743), Color(0xFF0E3326)),
-                            modifier = Modifier.weight(1f),
-                            onClick = onOpenTasbih
-                        )
+                        ModernFeatureTile("المسبحة الإلكترونية", "عدّاد ذكي وصوت خرز", Icons.Default.TouchApp, listOf(Color(0xFF4E408C), Color(0xFF281F52)), Modifier.weight(1f), onOpenTasbih)
+                        ModernFeatureTile("حصن المسلم", "الأذكار والأدعية اليومية", Icons.Default.VerifiedUser, listOf(Color(0xFF1E4E75), Color(0xFF0D2840)), Modifier.weight(1f), onOpenHisnAlMuslim)
                     }
                 }
             }
 
-            // Section 2: الأدوات والتخصيص (Sleek grouped card container)
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GroupHeader("الأدوات والتخصيص")
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(0.9.dp, SoftGold.copy(alpha = 0.45f))
-                    ) {
-                        Column {
-                            GroupedMenuItem("اتجاه القبلة", "بوصلة الكعبة المشرفة أوفلاين", Icons.Default.Explore, onOpenQibla)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
-                            GroupedMenuItem("مركز التنزيلات", "إدارة التفاسير والمساحة (محمّل / غير محمّل)", Icons.Default.CloudDownload, onOpenDownloads)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
-                            GroupedMenuItem("المفضلة والعلامات", "الآيات والأذكار والقصص المحفوظة", Icons.Default.Favorite, onOpenFavorites)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
-                            GroupedMenuItem("الإعدادات وتحديث التطبيق", "ألوان القراءة، الخط، التنبيهات، والتحديثات", Icons.Default.Settings, onOpenSettings)
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ModernSectionHeader("الأدوات والتخصيص")
+                    ModernGroupedCard {
+                        ModernMenuRow("اتجاه القبلة", "بوصلة الكعبة المشرفة الدقيقة", Icons.Default.Explore, onOpenQibla)
+                        ModernDivider()
+                        ModernMenuRow("مركز التنزيلات", "إدارة حزم التفسير والمعاني أوفلاين", Icons.Default.CloudDownload, onOpenDownloads)
+                        ModernDivider()
+                        ModernMenuRow("المفضلة والعلامات", "علامات المصحف والأذكار المحفوظة", Icons.Default.Favorite, onOpenFavorites)
+                        ModernDivider()
+                        ModernMenuRow("الإعدادات", "المظهر، الخطوط، التحديثات، والتنبيهات", Icons.Default.Settings, onOpenSettings)
                     }
                 }
             }
 
-            // Section 3: التطبيق
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GroupHeader("التطبيق")
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(0.9.dp, SoftGold.copy(alpha = 0.45f))
-                    ) {
-                        Column {
-                            GroupedMenuItem("مشاركة تطبيق ذِكري", "شارك الأجر مع أهلك وأصدقائك", Icons.Default.Share) {
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, "تطبيق ذِكري | DHIKRI — المصحف الشريف، التفسير، الأذكار، الختمة، والسبحة دون إنترنت.")
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة تطبيق ذِكري"))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ModernSectionHeader("التطبيق")
+                    ModernGroupedCard {
+                        ModernMenuRow("المصادر والتراخيص والخصوصية", "تطبيق ذِكري v${BuildConfig.VERSION_NAME}", Icons.Default.Info, onOpenSources)
+                        ModernDivider()
+                        ModernMenuRow("مشاركة تطبيق ذِكري", "شارك الأجر مع أهلك وأصدقائك", Icons.Default.Share) {
+                            val share = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "تطبيق ذِكري | DHIKRI — مصحف شريف، أذكار، مواقيت الصلاة، بوصلة القبلة، ومسبحة إلكترونية بدون إنترنت وبدون إعلانات:\nhttps://github.com/nabelmuh525-design/dhikri-app/releases/latest"
+                                )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
-                            GroupedMenuItem("المصادر والتراخيص والخصوصية", "الإصدار v${BuildConfig.VERSION_NAME} • Tanzil وQuranEnc", Icons.Default.VerifiedUser, onOpenSources)
+                            context.startActivity(Intent.createChooser(share, "مشاركة تطبيق ذِكري"))
                         }
                     }
                 }
@@ -177,7 +119,7 @@ fun MoreScreen(
 }
 
 @Composable
-private fun GroupHeader(title: String) {
+private fun ModernSectionHeader(title: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             modifier = Modifier
@@ -189,14 +131,14 @@ private fun GroupHeader(title: String) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            fontWeight = FontWeight.ExtraBold,
+            color = SoftGold
         )
     }
 }
 
 @Composable
-private fun ModernGridTile(
+private fun ModernFeatureTile(
     title: String,
     subtitle: String,
     icon: ImageVector,
@@ -204,34 +146,66 @@ private fun ModernGridTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Box(
+    Surface(
         modifier = modifier
             .height(106.dp)
             .shadow(4.dp, RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(colors))
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        contentAlignment = Alignment.Center
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f)),
+        color = Color.Transparent
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(colors))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Icon(icon, contentDescription = title, tint = SoftGold, modifier = Modifier.size(28.dp))
             Spacer(Modifier.height(6.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.82f), textAlign = TextAlign.Center, maxLines = 1)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, textAlign = TextAlign.Center)
+            Text(subtitle, color = Color.White.copy(alpha = 0.82f), fontSize = 11.sp, maxLines = 1, textAlign = TextAlign.Center)
         }
     }
 }
 
 @Composable
-private fun GroupedMenuItem(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
+private fun ModernGroupedCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.35f)),
+        shadowElevation = 3.dp
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun ModernDivider() {
+    HorizontalDivider(
+        color = SoftGold.copy(alpha = 0.18f),
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
+}
+
+@Composable
+private fun ModernMenuRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
@@ -240,114 +214,200 @@ private fun GroupedMenuItem(title: String, subtitle: String, icon: ImageVector, 
                 .background(EmeraldDark),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = title, tint = SoftGold, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = SoftGold, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = SoftGold)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadCenterScreen(viewModel: DhikriViewModel, onBack: () -> Unit) {
-    val packages by viewModel.downloadPackages.collectAsState()
+    val allPackages by viewModel.downloadPackages.collectAsState()
+    // Hide removed Stories package cleanly
+    val packages = allPackages.filterNot { it.packageKey.contains("stories", ignoreCase = true) || it.titleArabic.contains("الحكايات") }
     val installedCount = packages.count { it.status == "INSTALLED" }
     val installedMb = packages.filter { it.status == "INSTALLED" }.sumOf { it.sizeBytes } / 1_048_576.0
 
     Scaffold(
-        topBar = {
-            DhikriCompactTopBar(title = "مركز التنزيلات", onBack = onBack)
-        }
+        topBar = { DhikriCompactTopBar(title = "مركز التنزيلات", onBack = onBack) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Modern Royal Navy & Gold Summary Hero Card
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(16.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(22.dp)),
+                    shape = RoundedCornerShape(22.dp),
+                    border = BorderStroke(1.2.dp, SoftGold.copy(alpha = 0.7f)),
+                    color = Color.Transparent
                 ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("ملخص المحتوى المحمّل دون إنترنت", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                        Text("الحزم المحمّلة: $installedCount من ${packages.size} • المساحة المستخدمة: ${String.format("%.2f MB", installedMb)}")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Brush.horizontalGradient(listOf(Color(0xFF163A69), EmeraldDark)))
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                                .background(SoftGold.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CloudDone, contentDescription = null, tint = SoftGold, modifier = Modifier.size(26.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("المحتوى المحمّل دون إنترنت", color = SoftGold, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                            Text(
+                                "الحزم المثبّتة: $installedCount من ${packages.size}  •  الحجم: ${String.format("%.2f MB", installedMb)}",
+                                color = Color.White.copy(alpha = 0.92f),
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
 
             items(packages, key = { it.packageKey }) { pkg ->
                 val sizeMb = String.format("%.2f MB", pkg.sizeBytes / 1_048_576.0)
+                val isInstalled = pkg.status == "INSTALLED"
                 val statusArabic = when (pkg.status) {
-                    "INSTALLED" -> "محمّل ✅"
+                    "INSTALLED" -> "محمّل"
                     "DOWNLOADING" -> "جاري التنزيل (${pkg.progressPercent}%)"
                     "PAUSED" -> "متوقف مؤقتاً"
                     "FAILED" -> "فشل التنزيل"
-                    else -> "غير محمّل ⬇️"
+                    else -> "متاح للتنزيل"
                 }
-                Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isInstalled) Color(0xFF4ADE80).copy(alpha = 0.45f) else SoftGold.copy(alpha = 0.35f)
+                    ),
+                    shadowElevation = 3.dp
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(pkg.titleArabic, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldDark),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (pkg.isCore == 1) Icons.Default.Verified else Icons.Default.LibraryBooks,
+                                        contentDescription = null,
+                                        tint = SoftGold,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                                Text(pkg.titleArabic, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            }
+                            Spacer(Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (pkg.status == "INSTALLED") Color(0xFF1B5E20).copy(alpha = 0.22f) else SoftGold.copy(alpha = 0.24f)
+                                color = if (isInstalled) Color(0xFF14532D).copy(alpha = 0.35f) else SoftGold.copy(alpha = 0.2f),
+                                border = BorderStroke(0.8.dp, if (isInstalled) Color(0xFF4ADE80) else SoftGold)
                             ) {
                                 Text(
-                                    statusArabic,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = statusArabic,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (pkg.status == "INSTALLED") Color(0xFF4CAF50) else SoftGold,
+                                    color = if (isInstalled) Color(0xFF4ADE80) else SoftGold,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                        Text(pkg.descriptionArabic, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("الإصدار: ${pkg.version} • الحجم: $sizeMb", style = MaterialTheme.typography.labelMedium)
-                        if (pkg.sha256Checksum.isNotBlank() && pkg.sha256Checksum != "CORE_BUNDLED") {
-                            Text("التحقق SHA-256: ${pkg.sha256Checksum.take(18)}...", style = MaterialTheme.typography.labelMedium)
-                        }
-                        if (pkg.status == "DOWNLOADING" || pkg.status == "PAUSED") {
-                            LinearProgressIndicator(
-                                progress = { pkg.progressPercent / 100f },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                        Text(pkg.descriptionArabic, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 20.sp)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("الإصدار ${pkg.version} • $sizeMb", fontSize = 12.sp, color = SoftGold, fontWeight = FontWeight.SemiBold)
+
                             if (pkg.isCore == 1) {
-                                AssistChip(onClick = {}, label = { Text("مدمج أساسي (لا يُحذف)") })
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = EmeraldDark.copy(alpha = 0.65f),
+                                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        "مدمج أساسي",
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                    )
+                                }
                             } else {
-                                when (pkg.status) {
-                                    "INSTALLED" -> OutlinedButton(onClick = { viewModel.deleteOptionalPackage(pkg.packageKey) }) {
-                                        Text("حذف الحزمة")
-                                    }
-                                    "DOWNLOADING", "PAUSED", "FAILED" -> {
-                                        OutlinedButton(
-                                            onClick = { viewModel.pauseOrCancelDownload(pkg.packageKey) },
-                                            enabled = pkg.status == "DOWNLOADING"
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    when (pkg.status) {
+                                        "INSTALLED" -> OutlinedButton(
+                                            onClick = { viewModel.deleteOptionalPackage(pkg.packageKey) },
+                                            shape = RoundedCornerShape(12.dp),
+                                            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
                                         ) {
-                                            Text("إيقاف مؤقت")
+                                            Text("حذف الحزمة", fontSize = 12.sp)
                                         }
-                                        Button(
+                                        "DOWNLOADING", "PAUSED", "FAILED" -> {
+                                            OutlinedButton(
+                                                onClick = { viewModel.pauseOrCancelDownload(pkg.packageKey) },
+                                                enabled = pkg.status == "DOWNLOADING",
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) { Text("إيقاف", fontSize = 12.sp) }
+                                            Button(
+                                                onClick = { viewModel.startPackageDownload(pkg.packageKey) },
+                                                enabled = pkg.status != "DOWNLOADING",
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = SoftGold, contentColor = Color(0xFF1F1604))
+                                            ) { Text("إكمال", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                                        }
+                                        else -> Button(
                                             onClick = { viewModel.startPackageDownload(pkg.packageKey) },
-                                            enabled = pkg.status != "DOWNLOADING"
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SoftGold, contentColor = Color(0xFF1F1604))
                                         ) {
-                                            Text("إكمال التحميل")
+                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("تنزيل أوفلاين", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                    }
-                                    else -> Button(onClick = { viewModel.startPackageDownload(pkg.packageKey) }) {
-                                        Text("تنزيل أوفلاين")
                                     }
                                 }
                             }
+                        }
+
+                        if (pkg.status == "DOWNLOADING" || pkg.status == "PAUSED") {
+                            LinearProgressIndicator(
+                                progress = { pkg.progressPercent / 100f },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(4.dp)),
+                                color = SoftGold
+                            )
                         }
                     }
                 }
@@ -367,26 +427,58 @@ fun FavoritesScreen(
     val bookmarks by viewModel.bookmarks.collectAsState()
 
     Scaffold(
-        topBar = {
-            DhikriCompactTopBar(title = "المفضلة والعلامات", onBack = onBack)
-        }
+        topBar = { DhikriCompactTopBar(title = "المفضلة والعلامات", onBack = onBack) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { Text("العلامات المرجعية (${bookmarks.size})", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-            items(bookmarks, key = { it.id }) { bm ->
-                Card(Modifier.fillMaxWidth().clickable { onOpenPage(bm.pageNumber) }) {
-                    Text("${bm.label} — صفحة ${bm.pageNumber}", Modifier.padding(14.dp))
+            item { ModernSectionHeader("العلامات المرجعية (${bookmarks.size})") }
+            if (bookmarks.isEmpty()) {
+                item {
+                    Text("لا توجد علامات مرجعية محفوظة بعد.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                }
+            } else {
+                items(bookmarks, key = { it.id }) { bm ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpenPage(bm.pageNumber) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("${bm.label} — صفحة ${bm.pageNumber}", fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = SoftGold)
+                        }
+                    }
                 }
             }
-            item { Text("الأذكار المفضلة (${favAdhkar.size})", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-            items(favAdhkar, key = { it.id }) { d ->
-                Card(Modifier.fillMaxWidth()) { Text(d.textArabic.take(140), Modifier.padding(14.dp)) }
-            }
 
+            item {
+                Spacer(Modifier.height(4.dp))
+                ModernSectionHeader("الأذكار المفضلة (${favAdhkar.size})")
+            }
+            if (favAdhkar.isEmpty()) {
+                item {
+                    Text("اضغط على أيقونة القلب في أي ذكر لحفظه هنا.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                }
+            } else {
+                items(favAdhkar, key = { it.id }) { d ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.4f))
+                    ) {
+                        Text(d.textArabic.take(180), Modifier.padding(14.dp), lineHeight = 24.sp)
+                    }
+                }
+            }
         }
     }
 }
@@ -406,25 +498,26 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     Scaffold(
-        topBar = {
-            DhikriCompactTopBar(title = "الإعدادات", onBack = onBack)
-        }
+        topBar = { DhikriCompactTopBar(title = "الإعدادات", onBack = onBack) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Clean, Organized App Update Card
+            // 1. Modern App Update Hero Card
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.6f))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().shadow(5.dp, RoundedCornerShape(22.dp)),
+                    shape = RoundedCornerShape(22.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.2.dp, SoftGold.copy(alpha = 0.75f))
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(Color(0xFF163A69), EmeraldDark)))
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
@@ -432,48 +525,68 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = SoftGold)
-                                Text("تحديث تطبيق ذِكري", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftGold.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = SoftGold, modifier = Modifier.size(20.dp))
+                                }
+                                Column {
+                                    Text("تحديث تطبيق ذِكري", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text(
+                                        updateStatusMsg ?: "أنت تستخدم أحدث إصدار من التطبيق",
+                                        color = Color.White.copy(alpha = 0.80f),
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
+                                color = SoftGold.copy(alpha = 0.22f),
+                                border = BorderStroke(0.8.dp, SoftGold)
                             ) {
                                 Text(
                                     "v${BuildConfig.VERSION_NAME}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = SoftGold,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                        updateStatusMsg?.let { msg ->
-                            Text(msg, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                        }
+
                         updateProgress?.let { pct ->
-                            LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(
+                                progress = { pct / 100f },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(4.dp)),
+                                color = SoftGold,
+                                trackColor = Color.White.copy(alpha = 0.2f)
+                            )
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedButton(
                                 onClick = { viewModel.checkForAppUpdate(silent = false) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                             ) {
-                                Text("فحص التحديثات")
+                                Text("فحص التحديثات", fontWeight = FontWeight.SemiBold)
                             }
                             if (availableUpdate != null) {
                                 Button(
                                     onClick = { viewModel.installAppUpdate(context) },
                                     enabled = updateProgress == null,
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftGold, contentColor = Color(0xFF1F1604))
                                 ) {
-                                    Text("تحديث v${availableUpdate?.latestVersion}")
+                                    Text("تحديث v${availableUpdate?.latestVersion}", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -481,18 +594,14 @@ fun SettingsScreen(
                 }
             }
 
+            // 2. Appearance & Reading Section
+            item { ModernSectionHeader("المظهر والقراءة") }
+
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.35f))
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("مظهر التطبيق (الوضع الليلي)", fontWeight = FontWeight.SemiBold)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                ModernGroupedCard {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text("مظهر التطبيق (الوضع الليلي)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val options = listOf(
                                 Triple("system", "تلقائي (النظام)", Icons.Default.BrightnessAuto),
                                 Triple("light", "فاتح", Icons.Default.WbSunny),
@@ -501,14 +610,12 @@ fun SettingsScreen(
                             options.forEach { (key, label, icon) ->
                                 val selected = settings.themeMode == key
                                 Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { viewModel.setThemeMode(key) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) EmeraldDark else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.weight(1f).clickable { viewModel.setThemeMode(key) },
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (selected) EmeraldDark else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                                     border = BorderStroke(
                                         if (selected) 1.5.dp else 0.8.dp,
-                                        if (selected) SoftGold else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                                        if (selected) SoftGold else SoftGold.copy(alpha = 0.25f)
                                     )
                                 ) {
                                     Column(
@@ -533,13 +640,10 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    }
-                }
-            }
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("لون القراءة في المصحف (لراحة العين)", fontWeight = FontWeight.SemiBold)
+
+                        HorizontalDivider(color = SoftGold.copy(alpha = 0.18f))
+
+                        Text("لون القراءة في المصحف (لراحة العين)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(ReadingThemes, key = { it.key }) { theme ->
                                 val selected = settings.readingThemeKey == theme.key
@@ -547,7 +651,7 @@ fun SettingsScreen(
                                     modifier = Modifier.clickable { viewModel.setReadingTheme(theme.key) },
                                     shape = RoundedCornerShape(12.dp),
                                     color = theme.background,
-                                    border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) theme.accentColor else theme.dividerColor)
+                                    border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) SoftGold else theme.dividerColor)
                                 ) {
                                     Row(
                                         Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -555,41 +659,78 @@ fun SettingsScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Box(Modifier.size(16.dp).clip(CircleShape).background(theme.accentColor))
-                                        Text(theme.labelArabic, color = theme.textColor, style = MaterialTheme.typography.labelMedium)
+                                        Text(theme.labelArabic, color = theme.textColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
                             }
                         }
-                    }
-                }
-            }
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("حجم خط المصحف: ${settings.mushafFontSizeSp.toInt()} sp", fontWeight = FontWeight.SemiBold)
+
+                        HorizontalDivider(color = SoftGold.copy(alpha = 0.18f))
+
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("حجم خط المصحف", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = SoftGold.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    "${settings.mushafFontSizeSp.toInt()} sp",
+                                    color = SoftGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
                         Slider(
                             value = settings.mushafFontSizeSp,
                             onValueChange = { viewModel.setMushafFontSize(it) },
-                            valueRange = 18f..42f
+                            valueRange = 18f..42f,
+                            colors = SliderDefaults.colors(thumbColor = SoftGold, activeTrackColor = SoftGold)
                         )
                     }
                 }
             }
-            item { SettingSwitch("الاهتزاز في السبحة الإلكترونية", settings.vibrationEnabled) { viewModel.setVibrationEnabled(it) } }
-            item { SettingSwitch("صوت النقر في السبحة الإلكترونية", settings.soundEnabled) { viewModel.setSoundEnabled(it) } }
-            item { SettingSwitch("التنبيهات اليومية للأذكار", settings.notificationsEnabled) { viewModel.setNotificationsEnabled(it) } }
+
+            // 3. Feedback & Notifications Section
+            item { ModernSectionHeader("التفاعل والتنبيهات") }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    border = BorderStroke(0.8.dp, SoftGold.copy(alpha = 0.4f))
-                ) {
-                    Column {
-                        GroupedMenuItem("إدارة التنزيلات والتخزين", "حذف الحزم الإضافية دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), modifier = Modifier.padding(horizontal = 16.dp))
-                        GroupedMenuItem("المصادر والتراخيص والخصوصية", "حول تطبيق ذِكري v${BuildConfig.VERSION_NAME}", Icons.Default.Info, onOpenSources)
-                    }
+                ModernGroupedCard {
+                    ModernSettingToggleRow(
+                        title = "الاهتزاز في السبحة والأذكار",
+                        subtitle = "اهتزاز خفيف عند كل نقرة تسبيح أو ذكر",
+                        icon = Icons.Default.Vibration,
+                        checked = settings.vibrationEnabled,
+                        onCheckedChange = { viewModel.setVibrationEnabled(it) }
+                    )
+                    ModernDivider()
+                    ModernSettingToggleRow(
+                        title = "صوت خرز السبحة الإلكترونية",
+                        subtitle = "صوت نقر خشبي طبيعي أثناء التسبيح",
+                        icon = Icons.Default.VolumeUp,
+                        checked = settings.soundEnabled,
+                        onCheckedChange = { viewModel.setSoundEnabled(it) }
+                    )
+                    ModernDivider()
+                    ModernSettingToggleRow(
+                        title = "تنبيهات الأذكار اليومية",
+                        subtitle = "تذكير لطيف بأذكار الصباح والمساء",
+                        icon = Icons.Default.NotificationsActive,
+                        checked = settings.notificationsEnabled,
+                        onCheckedChange = { viewModel.setNotificationsEnabled(it) }
+                    )
+                }
+            }
+
+            // 4. Storage & About Section
+            item { ModernSectionHeader("التخزين والمعلومات") }
+
+            item {
+                ModernGroupedCard {
+                    ModernMenuRow("إدارة التنزيلات والتخزين", "حذف أو تنزيل حزم التفسير دون المساس ببياناتك", Icons.Default.Storage, onOpenDownloads)
+                    ModernDivider()
+                    ModernMenuRow("المصادر والتراخيص والخصوصية", "حول تطبيق ذِكري v${BuildConfig.VERSION_NAME}", Icons.Default.Info, onOpenSources)
                 }
             }
         }
@@ -597,16 +738,39 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingSwitch(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+private fun ModernSettingToggleRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(38.dp).clip(CircleShape).background(EmeraldDark),
+            contentAlignment = Alignment.Center
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Icon(icon, contentDescription = null, tint = SoftGold, modifier = Modifier.size(19.dp))
         }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(0xFF1F1604),
+                checkedTrackColor = SoftGold
+            )
+        )
     }
 }
 
@@ -614,9 +778,7 @@ private fun SettingSwitch(title: String, checked: Boolean, onCheckedChange: (Boo
 @Composable
 fun SourcesAndLicensesScreen(onBack: () -> Unit) {
     Scaffold(
-        topBar = {
-            DhikriCompactTopBar(title = "المصادر والتراخيص والخصوصية", onBack = onBack)
-        }
+        topBar = { DhikriCompactTopBar(title = "المصادر والتراخيص والخصوصية", onBack = onBack) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -638,13 +800,13 @@ fun SourcesAndLicensesScreen(onBack: () -> Unit) {
             item {
                 SourceCard(
                     title = "3. الأذكار والأدعية — كتاب حصن المسلم",
-                    body = "أذكار الكتاب والسنة من تأليف الشيخ سعيد بن علي بن وهف القحطاني، عبر قاعدة البيانات المفتوحة (رخصة MIT): github.com/YousefAsalya/Islamic-Pro-azkar-API.\nللتخريج الحديثي التفصيلي: الموسوعة الحديثية — الدرر السنية (https://dorar.net/hadith)."
+                    body = "أذكار الكتاب والسنة — الشيخ سعيد بن علي بن وهف القحطاني رحمه الله، مع الأدعية القرآنية وأدعية الأنبياء الموثقة."
                 )
             }
             item {
                 SourceCard(
                     title = "4. سياسة الخصوصية",
-                    body = "تطبيق ذِكري يعمل دون إنترنت (Offline-First)، ولا يجمع أي بيانات شخصية، ولا يرسل أي تتبع أو تحليلات خارجية، ولا يحتوي على إعلانات. جميع العلامات المرجعية والمفضلة وسجل التسبيح والختمة تُحفظ محلياً على جهازك فقط."
+                    body = "تطبيق ذِكري يعمل أوفلاين بالكامل، ولا يجمع أي بيانات شخصية، ولا يحتوي على إعلانات أو أدوات تتبّع. جميع علاماتك وختماتك وإعداداتك محفوظة محلياً على جهازك فقط."
                 )
             }
         }
@@ -653,10 +815,15 @@ fun SourcesAndLicensesScreen(onBack: () -> Unit) {
 
 @Composable
 private fun SourceCard(title: String, body: String) {
-    Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.9.dp, SoftGold.copy(alpha = 0.4f))
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Text(body, style = MaterialTheme.typography.bodyMedium)
+            Text(title, fontWeight = FontWeight.Bold, color = SoftGold, fontSize = 15.sp)
+            Text(body, fontSize = 13.5.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
