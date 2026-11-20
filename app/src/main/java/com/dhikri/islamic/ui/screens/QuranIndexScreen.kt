@@ -166,7 +166,7 @@ fun QuranIndexScreen(
                     contentPadding = PaddingValues(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(hizbs, key = { it.id }) { q ->
+                    items(hizbs, key = { "${it.hizbNumber}_${it.quarterInHizb}" }) { q ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable { onOpenPage(q.startPage) },
                             shape = RoundedCornerShape(14.dp)
