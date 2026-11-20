@@ -253,7 +253,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     QiblaCompassScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.HIJRI) {
-                    HijriCalendarScreen(onBack = { navController.popBackStack() })
+                    HijriCalendarModernScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.TASBIH) {
                     TasbihScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
