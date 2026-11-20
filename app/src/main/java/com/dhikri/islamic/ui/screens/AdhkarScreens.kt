@@ -341,6 +341,29 @@ fun AdhkarDetailScreen(
                     )
                 }
             }
+        }.let { cards ->
+            if (categoryId == 27 && mode == "morning") {
+                val isSubhan = { c: DisplayDhikrCard ->
+                    val plain = c.textArabic.replace(Regex("[\u064B-\u065F\u0670]"), "")
+                    plain.contains("سبحان الله وبحمده") && plain.length < 70
+                }
+                val existing = cards.filter(isSubhan)
+                val others = cards.filterNot(isSubhan)
+                if (existing.isNotEmpty()) {
+                    others + existing
+                } else {
+                    others + DisplayDhikrCard(
+                        uniqueKey = "morning_subhanallah_end",
+                        dbItemId = 999100,
+                        textArabic = "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ.",
+                        repeatCount = 100,
+                        sourceReference = "من قالها حين يصبح وحين يمسي مائة مرة لم يأتِ أحدٌ يوم القيامة بأفضل مما جاء به — رواه مسلم",
+                        isFavorite = 0
+                    )
+                }
+            } else {
+                cards
+            }
         }
     }
 
@@ -484,8 +507,7 @@ fun AdhkarDetailScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
                     ) {
                         items(displayCards, key = { it.uniqueKey }) { card ->
                             val tapped = progressMap[card.uniqueKey] ?: 0
@@ -512,6 +534,7 @@ fun AdhkarDetailScreen(
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .padding(bottom = 14.dp)
                                             .shadow(4.dp, RoundedCornerShape(20.dp))
                                             .clickable { handleCardTap(card) },
                                         shape = RoundedCornerShape(20.dp),
