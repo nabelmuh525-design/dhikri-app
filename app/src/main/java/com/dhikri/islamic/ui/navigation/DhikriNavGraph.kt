@@ -19,6 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +29,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,10 +41,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.dhikri.islamic.ui.components.WhatsNewDialog
 import com.dhikri.islamic.ui.components.WhatsNewTracker
 import com.dhikri.islamic.ui.screens.*
@@ -156,7 +156,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                         onContinueReading = { page -> navController.navigate(Routes.mushafPage(page)) },
                         onOpenQuran = { navigateToTab(BottomTab.Quran) },
                         onOpenAdhkarTab = { navigateToTab(BottomTab.Adhkar) },
-                        onOpenAdhkarCategory = { id -> navController.navigate(Routes.adhkarDetail(id, "morning")) },
+                        onOpenRecitations = { navController.navigate(Routes.RECITATIONS) },
                         onOpenTasbih = { navController.navigate(Routes.TASBIH) },
                         onOpenQibla = { navigateToTab(BottomTab.Qibla) },
                         onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
@@ -213,7 +213,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     )
                 }
                 composable(BottomTab.Qibla.route) {
-                    QiblaScreen(onBack = null)
+                    QiblaCompassScreen(onBack = null)
                 }
                 composable(Routes.MORE) {
                     MoreScreen(
@@ -248,7 +248,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     AsmaUlHusnaScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.QIBLA) {
-                    QiblaScreen(onBack = { navController.popBackStack() })
+                    QiblaCompassScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.HIJRI) {
                     HijriCalendarScreen(onBack = { navController.popBackStack() })
@@ -288,7 +288,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 )
             }
 
-            // Floating Auto-Update Download Overlay (visible on any screen when updating)
+            // Floating Auto-Update Download Overlay
             updateProgress?.let { pct ->
                 Surface(
                     modifier = Modifier

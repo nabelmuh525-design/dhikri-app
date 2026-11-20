@@ -1,11 +1,14 @@
 package com.dhikri.islamic.ui.screens
 
+import android.icu.text.DateFormat
+import android.icu.util.Calendar
+import android.icu.util.ULocale
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,21 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import android.icu.text.DateFormat
-import android.icu.util.Calendar
-import android.icu.util.ULocale
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +44,10 @@ import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.HafsFontFamily
 import com.dhikri.islamic.ui.theme.SoftGold
 import com.dhikri.islamic.ui.viewmodel.DhikriViewModel
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -55,7 +55,7 @@ fun HomeScreen(
     onContinueReading: (Int) -> Unit,
     onOpenQuran: () -> Unit,
     onOpenAdhkarTab: () -> Unit,
-    onOpenAdhkarCategory: (Int) -> Unit,
+    onOpenRecitations: () -> Unit,
     onOpenTasbih: () -> Unit,
     onOpenQibla: () -> Unit,
     onOpenFavorites: () -> Unit,
@@ -69,12 +69,14 @@ fun HomeScreen(
     val availableUpdate by viewModel.availableUpdate.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
     val context = LocalContext.current
+
     val systemDark = isSystemInDarkTheme()
     val effectiveDark = when (settings.themeMode) {
         "dark" -> true
         "light" -> false
         else -> systemDark
     }
+
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showCityPicker by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -121,7 +123,6 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .height(285.dp)
             )
-            // Soft warm gradient veil for crisp logo readability
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -137,7 +138,6 @@ fun HomeScreen(
                     )
             )
 
-            // Top bar: 3-lines Menu (Right/Start) | Clickable Hijri+Greg Date (Center) | Sun/Moon Theme Toggle (Left/End)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -205,7 +205,6 @@ fun HomeScreen(
                 }
             }
 
-            // Center Brand Title: ذِكري + tagline
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -244,7 +243,7 @@ fun HomeScreen(
                 }
             }
 
-            // Overlapping Cream-Gold Verse Banner
+            // Clean Verse Banner
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -259,8 +258,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "﴿ أَلَا بِذِكۡرِ ٱللَّهِ تَطۡمَئِنُّ ٱلۡقُلُوبُ ﴾",
@@ -275,7 +273,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // In-App Update Notification Banner (disappears automatically once updated)
+        // In-App Update Notification Banner
         availableUpdate?.let { update ->
             Surface(
                 modifier = Modifier
@@ -331,7 +329,7 @@ fun HomeScreen(
             }
         }
 
-        // Dedicated Prominent Continue Reading Card (منفصلة وواضحة)
+        // Dedicated Continue Reading Card
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -398,7 +396,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Prayer Times & Live Countdown Card (مواقيت الصلاة والعدّ التنازلي)
+        // Prayer Times & Live Countdown Card
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -411,11 +409,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF14345E), EmeraldDark)
-                        )
-                    )
+                    .background(Brush.verticalGradient(listOf(Color(0xFF14345E), EmeraldDark)))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -458,9 +452,7 @@ fun HomeScreen(
                             }
                         }
                         IconButton(
-                            onClick = {
-                                viewModel.setPreAdhanReminderEnabled(context, !settings.preAdhanReminderEnabled)
-                            },
+                            onClick = { viewModel.setPreAdhanReminderEnabled(context, !settings.preAdhanReminderEnabled) },
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
@@ -555,14 +547,13 @@ fun HomeScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // 2. 2x3 Colorful Gradient Feature Grid (matching exact reference layout)
+        // 2. 2x3 Feature Grid (All Adhkar consolidated under one "الأذكار" button)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Row 1 (RTL: Tasbih on right, Mushaf on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -589,41 +580,39 @@ fun HomeScreen(
                 )
             }
 
-            // Row 2 (RTL: Varied Duas on right, Morning/Evening Adhkar on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 HomeGradientCard(
-                    title = "أدعية متنوعة",
-                    subtitle = "في كل وقت وحين",
+                    title = "الأذكار",
+                    subtitle = "الصباح، المساء، وكل الأذكار",
                     icon = Icons.Default.VolunteerActivism,
-                    colors = listOf(Color(0xFF5CB1CC), Color(0xFF1E7494)),
+                    colors = listOf(Color(0xFF8B7AD4), Color(0xFF4F3E8E)),
                     contentColor = Color.White,
-                    iconTint = Color.White,
+                    iconTint = Color(0xFFFFF4D1),
                     modifier = Modifier.weight(1f),
                     onClick = onOpenAdhkarTab
                 )
                 HomeGradientCard(
-                    title = "أذكار الصباح والمساء",
-                    subtitle = "ابدأ يومك بذكر الله",
-                    icon = Icons.Default.EditNote,
-                    colors = listOf(Color(0xFF9387D4), Color(0xFF5A4E94)),
+                    title = "الاستماع للقرآن",
+                    subtitle = "تلاوات خاشعة أوفلاين",
+                    icon = Icons.Default.Headphones,
+                    colors = listOf(Color(0xFF4CA5C2), Color(0xFF1C6B8A)),
                     contentColor = Color.White,
                     iconTint = Color.White,
                     modifier = Modifier.weight(1f),
-                    onClick = { onOpenAdhkarCategory(27) }
+                    onClick = onOpenRecitations
                 )
             }
 
-            // Row 3 (RTL: Favorites on right, Stories on left)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 HomeGradientCard(
                     title = "المفضلة",
-                    subtitle = "أذكارك المفضلة دائماً",
+                    subtitle = "أذكارك وعلاماتك دائماً",
                     icon = Icons.Default.Star,
                     colors = listOf(Color(0xFFF6CC80), Color(0xFFC99136)),
                     contentColor = Color(0xFF2B1F09),
