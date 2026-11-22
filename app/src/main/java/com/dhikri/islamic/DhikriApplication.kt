@@ -4,6 +4,7 @@ import android.app.Application
 import com.dhikri.islamic.data.local.DhikriDatabase
 import com.dhikri.islamic.data.preferences.UserSettingsRepository
 import com.dhikri.islamic.data.repository.DhikriRepository
+import com.dhikri.islamic.data.update.PreAdhanReminderWorker
 import com.dhikri.islamic.data.update.UpdateCheckWorker
 
 class DhikriApplication : Application() {
@@ -20,5 +21,6 @@ class DhikriApplication : Application() {
         repository = DhikriRepository(this, database)
         settingsRepository = UserSettingsRepository(this)
         UpdateCheckWorker.schedulePeriodicCheck(this)
+        PreAdhanReminderWorker.ensureScheduledOnStartup(this)
     }
 }

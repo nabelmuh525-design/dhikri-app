@@ -13,10 +13,16 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                 val prayerTime = intent.getStringExtra(PreAdhanReminderWorker.EXTRA_PRAYER_TIME) ?: ""
                 val cityName = intent.getStringExtra(PreAdhanReminderWorker.EXTRA_CITY_NAME) ?: "عمّان"
                 PreAdhanReminderWorker.showPreAdhanNotification(context, prayerName, prayerTime)
-                // Schedule the following prayer automatically (+12 min offset to move past current prayer)
-                PreAdhanReminderWorker.scheduleNext(context, cityName, System.currentTimeMillis() + 12 * 60_000L)
+                PreAdhanReminderWorker.schedulePreAdhanOnly(context, cityName, System.currentTimeMillis() + 12 * 60_000L)
+            }
+            PreAdhanReminderWorker.ACTION_POST_PRAYER_DHIKR -> {
+                val prayerName = intent.getStringExtra(PreAdhanReminderWorker.EXTRA_PRAYER_NAME) ?: "الصلاة"
+                val cityName = intent.getStringExtra(PreAdhanReminderWorker.EXTRA_CITY_NAME) ?: "عمّان"
+                PreAdhanReminderWorker.showPostPrayerNotifications(context, prayerName)
+                PreAdhanReminderWorker.scheduleNextPostPrayerDhikr(context, cityName, System.currentTimeMillis() + 5 * 60_000L)
             }
             Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED -> {
                 PreAdhanReminderWorker.rescheduleIfEnabled(context)

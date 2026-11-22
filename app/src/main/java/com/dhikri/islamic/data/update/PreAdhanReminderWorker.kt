@@ -27,19 +27,62 @@ class PreAdhanReminderWorker(
 
     companion object {
         const val ACTION_PRAYER_ALARM = "com.dhikri.islamic.ACTION_PRAYER_ALARM"
+        const val ACTION_POST_PRAYER_DHIKR = "com.dhikri.islamic.ACTION_POST_PRAYER_DHIKR"
         const val EXTRA_PRAYER_NAME = "prayer_name"
         const val EXTRA_PRAYER_TIME = "prayer_time"
         const val EXTRA_CITY_NAME = "city_name"
+
         private const val LEGACY_WORK_NAME = "dhikri_pre_adhan_reminder"
-        private const val CHANNEL_ID = "dhikri_prayer_reminders_high"
-        private const val NOTIFICATION_ID = 3401
-        private const val ALARM_REQ_CODE = 3402
+        private const val CHANNEL_PRAYER_ID = "dhikri_prayer_reminders_high"
+        private const val CHANNEL_ADHKAR_ID = "dhikri_adhkar_reminders_high"
+
+        private const val NOTIF_ID_PRE_ADHAN = 3401
+        private const val NOTIF_ID_POST_ISTIGHFAR = 3411
+        private const val NOTIF_ID_ADHKAR = 3412
+
+        private const val REQ_CODE_PRE_ADHAN = 3402
+        private const val REQ_CODE_POST_DHIKR = 3422
+
         private const val PREFS_NAME = "dhikri_prayer_alarm_prefs"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_CITY = "city_name"
 
+        fun ensureChannels(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val prayerChannel = NotificationChannel(
+                CHANNEL_PRAYER_ID,
+                "تنبيهات الصلاة والاستغفار",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تنبيهات مواقيت الصلاة والاستغفار بعد كل صلاة"
+                enableVibration(true)
+            }
+            val adhkarChannel = NotificationChannel(
+                CHANNEL_ADHKAR_ID,
+                "تذكير أذكار الصباح والمساء",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "تذكير بقراءة أذكار الصباح بعد الفجر وأذكار المساء بعد العشاء"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(prayerChannel)
+            manager.createNotificationChannel(adhkarChannel)
+        }
+
+        fun ensureScheduledOnStartup(context: Context) {
+            ensureChannels(context)
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val enabled = prefs.getBoolean(KEY_ENABLED, true)
+            val city = prefs.getString(KEY_CITY, "عمّان") ?: "عمّان"
+            if (enabled) {
+                scheduleNext(context, city)
+            }
+        }
+
         fun scheduleNext(context: Context, cityName: String, fromMillis: Long = System.currentTimeMillis()) {
-            // Cancel any legacy WorkManager job
+            ensureChannels(context)
             runCatching { WorkManager.getInstance(context).cancelUniqueWork(LEGACY_WORK_NAME) }
 
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -48,8 +91,12 @@ class PreAdhanReminderWorker(
                 .putString(KEY_CITY, cityName)
                 .apply()
 
+            schedulePreAdhanOnly(context, cityName, fromMillis)
+            scheduleNextPostPrayerDhikr(context, cityName, fromMillis)
+        }
+
+        fun schedulePreAdhanOnly(context: Context, cityName: String, fromMillis: Long = System.currentTimeMillis()) {
             val schedule = PrayerTimesCalculator.computeSchedule(cityName, fromMillis)
-            // Fire 10 minutes before the next prayer (or at the prayer time if less than 10 min left)
             val preTrigger = schedule.nextPrayer.timeMillis - 10 * 60_000L
             val triggerAt = if (preTrigger > System.currentTimeMillis() + 5_000L) {
                 preTrigger
@@ -63,24 +110,47 @@ class PreAdhanReminderWorker(
                 putExtra(EXTRA_PRAYER_TIME, schedule.nextPrayer.formatted12h())
                 putExtra(EXTRA_CITY_NAME, cityName)
             }
+            scheduleExactAlarm(context, REQ_CODE_PRE_ADHAN, triggerAt, intent)
+        }
 
+        /**
+         * Schedules the post-prayer Istighfar notification (+ Morning Adhkar after Fajr / Evening Adhkar after Isha)
+         * 15 minutes after the prayer time so it arrives right after finishing the prayer.
+         */
+        fun scheduleNextPostPrayerDhikr(context: Context, cityName: String, fromMillis: Long = System.currentTimeMillis()) {
+            val offsetAfterPrayerMs = 15 * 60_000L
+            // Look up the prayer whose (prayerTime + 15 min) is strictly in the future
+            val probeTime = fromMillis - offsetAfterPrayerMs + 5_000L
+            val schedule = PrayerTimesCalculator.computeSchedule(cityName, probeTime)
+            val targetPrayer = schedule.nextPrayer
+            val triggerAt = (targetPrayer.timeMillis + offsetAfterPrayerMs)
+                .coerceAtLeast(System.currentTimeMillis() + 15_000L)
+
+            val intent = Intent(context, PrayerAlarmReceiver::class.java).apply {
+                action = ACTION_POST_PRAYER_DHIKR
+                putExtra(EXTRA_PRAYER_NAME, targetPrayer.nameArabic)
+                putExtra(EXTRA_PRAYER_TIME, targetPrayer.formatted12h())
+                putExtra(EXTRA_CITY_NAME, cityName)
+            }
+            scheduleExactAlarm(context, REQ_CODE_POST_DHIKR, triggerAt, intent)
+        }
+
+        private fun scheduleExactAlarm(context: Context, requestCode: Int, triggerAt: Long, intent: Intent) {
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                ALARM_REQ_CODE,
+                requestCode,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val showIntent = PendingIntent.getActivity(
                 context,
-                ALARM_REQ_CODE + 1,
+                requestCode + 1,
                 Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
             runCatching {
-                // setAlarmClock bypasses Doze & Realme/OEM battery throttling reliably
                 val info = AlarmManager.AlarmClockInfo(triggerAt, showIntent)
                 alarmManager.setAlarmClock(info, pendingIntent)
             }.onFailure {
@@ -107,71 +177,119 @@ class PreAdhanReminderWorker(
                 .putBoolean(KEY_ENABLED, false)
                 .apply()
 
-            val intent = Intent(context, PrayerAlarmReceiver::class.java).apply {
-                action = ACTION_PRAYER_ALARM
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                ALARM_REQ_CODE,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(pendingIntent)
+            listOf(
+                REQ_CODE_PRE_ADHAN to ACTION_PRAYER_ALARM,
+                REQ_CODE_POST_DHIKR to ACTION_POST_PRAYER_DHIKR
+            ).forEach { (reqCode, act) ->
+                val intent = Intent(context, PrayerAlarmReceiver::class.java).apply { action = act }
+                val pi = PendingIntent.getBroadcast(
+                    context,
+                    reqCode,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                alarmManager.cancel(pi)
+            }
         }
 
         fun rescheduleIfEnabled(context: Context) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            if (prefs.getBoolean(KEY_ENABLED, false)) {
-                val city = prefs.getString(KEY_CITY, "عمّان") ?: "عمّان"
-                scheduleNext(context, city)
+            ensureScheduledOnStartup(context)
+        }
+
+        private fun hasNotificationPermission(context: Context): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
             }
         }
 
         fun showPreAdhanNotification(context: Context, prayerName: String, timeStr: String) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val granted = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-                if (!granted) return
-            }
+            if (!hasNotificationPermission(context)) return
+            ensureChannels(context)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "تنبيهات مواقيت الصلاة",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "تنبيه دقيق قبل موعد الأذان بـ 10 دقائق حتى والهاتف مقفول"
-                }
-                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.createNotificationChannel(channel)
-            }
-
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pi = PendingIntent.getActivity(
-                context,
-                NOTIFICATION_ID,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            val pi = mainPendingIntent(context, NOTIF_ID_PRE_ADHAN)
+            val notification = NotificationCompat.Builder(context, CHANNEL_PRAYER_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("اقترب موعد صلاة $prayerName")
                 .setContentText("متبقي 10 دقائق على أذان $prayerName ($timeStr) — استعد للصلاة")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setAutoCancel(true)
                 .setContentIntent(pi)
                 .build()
 
             runCatching {
-                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+                NotificationManagerCompat.from(context).notify(NOTIF_ID_PRE_ADHAN, notification)
             }
+        }
+
+        fun showPostPrayerNotifications(context: Context, prayerName: String) {
+            if (!hasNotificationPermission(context)) return
+            ensureChannels(context)
+
+            // 1. Always send Istighfar reminder after every prayer
+            val istighfarPi = mainPendingIntent(context, NOTIF_ID_POST_ISTIGHFAR)
+            val istighfarNotif = NotificationCompat.Builder(context, CHANNEL_PRAYER_ID)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("وقت الاستغفار بعد صلاة $prayerName")
+                .setContentText("أستغفر الله العظيم وأتوب إليه — خصّص دقائق للاستغفار والأذكار بعد الصلاة")
+                .setStyle(
+                    NotificationCompat.BigTextStyle().bigText(
+                        "أستغفر الله العظيم الذي لا إله إلا هو الحي القيوم وأتوب إليه. افتح عداد الاستغفار في ذِكري الآن."
+                    )
+                )
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setAutoCancel(true)
+                .setContentIntent(istighfarPi)
+                .build()
+
+            runCatching {
+                NotificationManagerCompat.from(context).notify(NOTIF_ID_POST_ISTIGHFAR, istighfarNotif)
+            }
+
+            // 2. After Fajr -> Morning Adhkar reminder; After Isha -> Evening Adhkar reminder
+            val adhkarReminder: Pair<String, String>? = when (prayerName) {
+                "الفجر" -> "لا تنسَ أذكار الصباح" to "بعد صلاة الفجر: اقرأ أذكار الصباح الآن لتحفظ يومك وتنال الطمأنينة"
+                "العشاء" -> "لا تنسَ أذكار المساء" to "بعد صلاة العشاء: اقرأ أذكار المساء الآن لتحصّن ليلتك بذكر الله"
+                else -> null
+            }
+
+            if (adhkarReminder != null) {
+                val adhkarPi = mainPendingIntent(context, NOTIF_ID_ADHKAR)
+                val adhkarNotif = NotificationCompat.Builder(context, CHANNEL_ADHKAR_ID)
+                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                    .setContentTitle(adhkarReminder.first)
+                    .setContentText(adhkarReminder.second)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(adhkarReminder.second))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setAutoCancel(true)
+                    .setContentIntent(adhkarPi)
+                    .build()
+
+                runCatching {
+                    NotificationManagerCompat.from(context).notify(NOTIF_ID_ADHKAR, adhkarNotif)
+                }
+            }
+        }
+
+        private fun mainPendingIntent(context: Context, requestCode: Int): PendingIntent {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            return PendingIntent.getActivity(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
         }
     }
 }
