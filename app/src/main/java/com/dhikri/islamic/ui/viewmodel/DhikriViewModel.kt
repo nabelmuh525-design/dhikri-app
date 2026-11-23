@@ -132,7 +132,7 @@ class DhikriViewModel(
         viewModelScope.launch {
             _updateProgress.value = 0
             _updateStatusMsg.value = "جاري تحميل التحديث (${info.latestVersion})..."
-            val res = AppUpdater.downloadAndInstall(context, info.apkUrl) { pct ->
+            val res = AppUpdater.downloadAndInstall(context, info.apkUrl, info.sha256Url) { pct ->
                 _updateProgress.value = pct
             }
             _updateProgress.value = null
@@ -247,17 +247,49 @@ class DhikriViewModel(
     fun setThemeMode(mode: String) = viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     fun setPrayerCityName(context: Context, cityName: String) = viewModelScope.launch {
         settingsRepository.setPrayerCityName(cityName)
-        if (settings.value.preAdhanReminderEnabled) {
-            PreAdhanReminderWorker.scheduleNext(context, cityName)
-        }
+        PreAdhanReminderWorker.syncWithSettings(context, settings.value.copy(prayerCityName = cityName))
     }
     fun setPreAdhanReminderEnabled(context: Context, enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setPreAdhanReminderEnabled(enabled)
-        if (enabled) {
-            PreAdhanReminderWorker.scheduleNext(context, settings.value.prayerCityName)
-        } else {
-            PreAdhanReminderWorker.cancel(context)
+        PreAdhanReminderWorker.syncWithSettings(context, settings.value.copy(preAdhanReminderEnabled = enabled))
+    }
+    fun setCalculationMethod(context: Context, methodKey: String) = viewModelScope.launch {
+        settingsRepository.setCalculationMethod(methodKey)
+        PreAdhanReminderWorker.syncWithSettings(context, settings.value.copy(calculationMethodKey = methodKey))
+    }
+    fun setAsrMadhab(context: Context, madhabKey: String) = viewModelScope.launch {
+        settingsRepository.setAsrMadhab(madhabKey)
+        PreAdhanReminderWorker.syncWithSettings(context, settings.value.copy(asrMadhabKey = madhabKey))
+    }
+    fun setHighLatitudeRule(context: Context, ruleKey: String) = viewModelScope.launch {
+        settingsRepository.setHighLatitudeRule(ruleKey)
+        PreAdhanReminderWorker.syncWithSettings(context, settings.value.copy(highLatitudeRuleKey = ruleKey))
+    }
+    fun setPrayerOffsets(context: Context, fajr: Int, dhuhr: Int, asr: Int, maghrib: Int, isha: Int) = viewModelScope.launch {
+        settingsRepository.setPrayerOffsets(fajr, dhuhr, asr, maghrib, isha)
+        PreAdhanReminderWorker.syncWithSettings(
+            context,
+            settings.value.copy(
+                offsetFajrMin = fajr,
+                offsetDhuhrMin = dhuhr,
+                offsetAsrMin = asr,
+                offsetMaghribMin = maghrib,
+                offsetIshaMin = isha
+            )
+        )
+    }
+    fun setPrayerNotificationEnabled(context: Context, prayerName: String, enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setPrayerNotificationEnabled(prayerName, enabled)
+        val cur = settings.value
+        val updated = when (prayerName) {
+            "الفجر" -> cur.copy(notifyFajr = enabled)
+            "الظهر" -> cur.copy(notifyDhuhr = enabled)
+            "العصر" -> cur.copy(notifyAsr = enabled)
+            "المغرب" -> cur.copy(notifyMaghrib = enabled)
+            "العشاء" -> cur.copy(notifyIsha = enabled)
+            else -> cur
         }
+        PreAdhanReminderWorker.syncWithSettings(context, updated)
     }
     fun setNightReadingMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setNightReadingMode(enabled) }
     fun setReadingTheme(themeKey: String) = viewModelScope.launch { settingsRepository.setReadingTheme(themeKey) }

@@ -21,7 +21,7 @@ data class UserSettings(
     val uiFontScale: Float = 1.0f,
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = true,
-    val notificationsEnabled: Boolean = false,
+    val notificationsEnabled: Boolean = true,
     val lastTasbihPresetId: Int = 1,
     val useHafsV20Text: Boolean = true,
     val khatmahDays: Int = 30,
@@ -29,7 +29,23 @@ data class UserSettings(
     val khatmahActive: Boolean = false,
     val dailyTasbihGoal: Int = 100,
     val prayerCityName: String = "عمّان",
-    val preAdhanReminderEnabled: Boolean = false
+    val preAdhanReminderEnabled: Boolean = true,
+    // v4.0.0 Prayer Calculation & Per-Prayer Notification Controls
+    val calculationMethodKey: String = "jordan_awqaf",
+    val asrMadhabKey: String = "shafi",
+    val highLatitudeRuleKey: String = "angle_based",
+    val offsetFajrMin: Int = 0,
+    val offsetDhuhrMin: Int = 0,
+    val offsetAsrMin: Int = 0,
+    val offsetMaghribMin: Int = 0,
+    val offsetIshaMin: Int = 0,
+    val notifyFajr: Boolean = true,
+    val notifyDhuhr: Boolean = true,
+    val notifyAsr: Boolean = true,
+    val notifyMaghrib: Boolean = true,
+    val notifyIsha: Boolean = true,
+    val postPrayerIstighfarEnabled: Boolean = true,
+    val morningEveningAdhkarReminderEnabled: Boolean = true
 )
 
 class UserSettingsRepository(private val context: Context) {
@@ -52,6 +68,21 @@ class UserSettingsRepository(private val context: Context) {
         val DAILY_TASBIH_GOAL = intPreferencesKey("daily_tasbih_goal")
         val PRAYER_CITY_NAME = stringPreferencesKey("prayer_city_name")
         val PRE_ADHAN_REMINDER = booleanPreferencesKey("pre_adhan_reminder")
+        val CALCULATION_METHOD = stringPreferencesKey("calculation_method_key")
+        val ASR_MADHAB = stringPreferencesKey("asr_madhab_key")
+        val HIGH_LAT_RULE = stringPreferencesKey("high_latitude_rule_key")
+        val OFFSET_FAJR = intPreferencesKey("offset_fajr_min")
+        val OFFSET_DHUHR = intPreferencesKey("offset_dhuhr_min")
+        val OFFSET_ASR = intPreferencesKey("offset_asr_min")
+        val OFFSET_MAGHRIB = intPreferencesKey("offset_maghrib_min")
+        val OFFSET_ISHA = intPreferencesKey("offset_isha_min")
+        val NOTIFY_FAJR = booleanPreferencesKey("notify_fajr")
+        val NOTIFY_DHUHR = booleanPreferencesKey("notify_dhuhr")
+        val NOTIFY_ASR = booleanPreferencesKey("notify_asr")
+        val NOTIFY_MAGHRIB = booleanPreferencesKey("notify_maghrib")
+        val NOTIFY_ISHA = booleanPreferencesKey("notify_isha")
+        val POST_PRAYER_ISTIGHFAR = booleanPreferencesKey("post_prayer_istighfar_enabled")
+        val MORNING_EVENING_ADHKAR = booleanPreferencesKey("morning_evening_adhkar_reminder")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
@@ -63,6 +94,7 @@ class UserSettingsRepository(private val context: Context) {
         } else {
             "system"
         }
+        val unifiedNotif = prefs[Keys.PRE_ADHAN_REMINDER] ?: prefs[Keys.NOTIFICATIONS_ENABLED] ?: true
         UserSettings(
             darkMode = legacyDark,
             themeMode = savedThemeMode,
@@ -72,7 +104,7 @@ class UserSettingsRepository(private val context: Context) {
             uiFontScale = prefs[Keys.UI_FONT_SCALE] ?: 1.0f,
             vibrationEnabled = prefs[Keys.VIBRATION_ENABLED] ?: true,
             soundEnabled = prefs[Keys.SOUND_ENABLED] ?: true,
-            notificationsEnabled = prefs[Keys.NOTIFICATIONS_ENABLED] ?: false,
+            notificationsEnabled = unifiedNotif,
             lastTasbihPresetId = prefs[Keys.LAST_TASBIH_PRESET_ID] ?: 1,
             useHafsV20Text = prefs[Keys.USE_HAFS_V20_TEXT] ?: true,
             khatmahDays = prefs[Keys.KHATMAH_DAYS] ?: 30,
@@ -80,7 +112,22 @@ class UserSettingsRepository(private val context: Context) {
             khatmahActive = prefs[Keys.KHATMAH_ACTIVE] ?: false,
             dailyTasbihGoal = prefs[Keys.DAILY_TASBIH_GOAL] ?: 100,
             prayerCityName = prefs[Keys.PRAYER_CITY_NAME] ?: "عمّان",
-            preAdhanReminderEnabled = prefs[Keys.PRE_ADHAN_REMINDER] ?: false
+            preAdhanReminderEnabled = unifiedNotif,
+            calculationMethodKey = prefs[Keys.CALCULATION_METHOD] ?: "jordan_awqaf",
+            asrMadhabKey = prefs[Keys.ASR_MADHAB] ?: "shafi",
+            highLatitudeRuleKey = prefs[Keys.HIGH_LAT_RULE] ?: "angle_based",
+            offsetFajrMin = prefs[Keys.OFFSET_FAJR] ?: 0,
+            offsetDhuhrMin = prefs[Keys.OFFSET_DHUHR] ?: 0,
+            offsetAsrMin = prefs[Keys.OFFSET_ASR] ?: 0,
+            offsetMaghribMin = prefs[Keys.OFFSET_MAGHRIB] ?: 0,
+            offsetIshaMin = prefs[Keys.OFFSET_ISHA] ?: 0,
+            notifyFajr = prefs[Keys.NOTIFY_FAJR] ?: true,
+            notifyDhuhr = prefs[Keys.NOTIFY_DHUHR] ?: true,
+            notifyAsr = prefs[Keys.NOTIFY_ASR] ?: true,
+            notifyMaghrib = prefs[Keys.NOTIFY_MAGHRIB] ?: true,
+            notifyIsha = prefs[Keys.NOTIFY_ISHA] ?: true,
+            postPrayerIstighfarEnabled = prefs[Keys.POST_PRAYER_ISTIGHFAR] ?: true,
+            morningEveningAdhkarReminderEnabled = prefs[Keys.MORNING_EVENING_ADHKAR] ?: true
         )
     }
 
@@ -104,7 +151,44 @@ class UserSettingsRepository(private val context: Context) {
     }
 
     suspend fun setPreAdhanReminderEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.PRE_ADHAN_REMINDER] = enabled }
+        context.dataStore.edit {
+            it[Keys.PRE_ADHAN_REMINDER] = enabled
+            it[Keys.NOTIFICATIONS_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setCalculationMethod(methodKey: String) {
+        context.dataStore.edit { it[Keys.CALCULATION_METHOD] = methodKey }
+    }
+
+    suspend fun setAsrMadhab(madhabKey: String) {
+        context.dataStore.edit { it[Keys.ASR_MADHAB] = madhabKey }
+    }
+
+    suspend fun setHighLatitudeRule(ruleKey: String) {
+        context.dataStore.edit { it[Keys.HIGH_LAT_RULE] = ruleKey }
+    }
+
+    suspend fun setPrayerOffsets(fajr: Int, dhuhr: Int, asr: Int, maghrib: Int, isha: Int) {
+        context.dataStore.edit {
+            it[Keys.OFFSET_FAJR] = fajr.coerceIn(-30, 30)
+            it[Keys.OFFSET_DHUHR] = dhuhr.coerceIn(-30, 30)
+            it[Keys.OFFSET_ASR] = asr.coerceIn(-30, 30)
+            it[Keys.OFFSET_MAGHRIB] = maghrib.coerceIn(-30, 30)
+            it[Keys.OFFSET_ISHA] = isha.coerceIn(-30, 30)
+        }
+    }
+
+    suspend fun setPrayerNotificationEnabled(prayerName: String, enabled: Boolean) {
+        context.dataStore.edit {
+            when (prayerName) {
+                "الفجر" -> it[Keys.NOTIFY_FAJR] = enabled
+                "الظهر" -> it[Keys.NOTIFY_DHUHR] = enabled
+                "العصر" -> it[Keys.NOTIFY_ASR] = enabled
+                "المغرب" -> it[Keys.NOTIFY_MAGHRIB] = enabled
+                "العشاء" -> it[Keys.NOTIFY_ISHA] = enabled
+            }
+        }
     }
 
     suspend fun setNightReadingMode(enabled: Boolean) {
@@ -134,7 +218,7 @@ class UserSettingsRepository(private val context: Context) {
     }
 
     suspend fun setNotificationsEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.NOTIFICATIONS_ENABLED] = enabled }
+        setPreAdhanReminderEnabled(enabled)
     }
 
     suspend fun setLastTasbihPresetId(id: Int) {

@@ -13,8 +13,8 @@ android {
         applicationId = "com.dhikri.islamic"
         minSdk = 24
         targetSdk = 35
-        versionCode = 27
-        versionName = "3.8.4"
+        versionCode = 28
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -73,6 +73,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
 }
 
 dependencies {

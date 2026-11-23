@@ -1,6 +1,7 @@
 package com.dhikri.islamic.ui.screens
 
 import android.content.Context
+import android.hardware.GeomagneticField
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -36,10 +37,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -51,33 +52,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dhikri.islamic.R
+import com.dhikri.islamic.domain.util.PrayerCity
+import com.dhikri.islamic.domain.util.PrayerTimesCalculator
+import com.dhikri.islamic.domain.util.QiblaMath
 import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.SoftGold
 import kotlin.math.*
-
-private data class CompassCity(
-    val nameArabic: String,
-    val latitude: Double,
-    val longitude: Double
-)
-
-private val compassCities = listOf(
-    CompassCity("عمّان", 31.9539, 35.9106),
-    CompassCity("إربد", 32.5568, 35.8469),
-    CompassCity("الزرقاء", 32.0728, 36.0880),
-    CompassCity("العقبة", 29.5321, 35.0063),
-    CompassCity("القدس", 31.7683, 35.2137),
-    CompassCity("مكة المكرمة", 21.4225, 39.8262),
-    CompassCity("المدينة المنورة", 24.4672, 39.6112),
-    CompassCity("الرياض", 24.7136, 46.6753),
-    CompassCity("القاهرة", 30.0444, 31.2357),
-    CompassCity("دمشق", 33.5138, 36.2765),
-    CompassCity("بيروت", 33.8938, 35.5018),
-    CompassCity("بغداد", 33.3152, 44.3661),
-    CompassCity("دبي", 25.2048, 55.2708),
-    CompassCity("الدوحة", 25.2854, 51.5310)
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,44 +66,61 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var selectedCity by remember { mutableStateOf(compassCities.first()) }
-    var azimuthDeg by remember { mutableFloatStateOf(0f) }
+    val cities = remember { PrayerTimesCalculator.cities }
+    var selectedCity by remember { mutableStateOf(cities.first()) }
+    val activeLat = selectedCity.latitude
+    val activeLon = selectedCity.longitude
+
+    var trueAzimuthDeg by remember { mutableFloatStateOf(0f) }
     var hasSensor by remember { mutableStateOf(true) }
     var wasAligned by remember { mutableStateOf(false) }
 
-    // Great-circle bearing to Kaaba (21.4225° N, 39.8262° E)
-    val qiblaBearing = remember(selectedCity) {
-        val lat1 = Math.toRadians(selectedCity.latitude)
-        val lon1 = Math.toRadians(selectedCity.longitude)
-        val lat2 = Math.toRadians(21.4225)
-        val lon2 = Math.toRadians(39.8262)
-        val dLon = lon2 - lon1
-        val y = sin(dLon) * cos(lat2)
-        val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
+    // True geographic Qibla bearing & distance using verified Kaaba coordinates
+    val qiblaBearing = remember(activeLat, activeLon) {
+        QiblaMath.calculateQiblaBearing(activeLat, activeLon).toFloat()
+    }
+    val distanceKm = remember(activeLat, activeLon) {
+        QiblaMath.distanceToKaabaKm(activeLat, activeLon).roundToInt()
+    }
+    // Magnetic declination (degrees East positive) to convert Magnetic North -> True Geographic North
+    val magneticDeclination = remember(activeLat, activeLon) {
+        runCatching {
+            GeomagneticField(
+                activeLat.toFloat(),
+                activeLon.toFloat(),
+                0f,
+                System.currentTimeMillis()
+            ).declination
+        }.getOrDefault(0f)
     }
 
-    // Battery-efficient lifecycle-bound compass sensor
-    DisposableEffect(context, lifecycleOwner) {
+    // Lifecycle-bound compass sensor with circular low-pass filter & accuracy tracking
+    DisposableEffect(context, lifecycleOwner, magneticDeclination) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val rotSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         if (rotSensor == null) {
             hasSensor = false
             onDispose { }
         } else {
-            var lastEmitted = -999f
+            var smoothedAzimuth = -1f
             val listener = object : SensorEventListener {
                 val rotMatrix = FloatArray(9)
                 val orient = FloatArray(3)
                 override fun onSensorChanged(event: SensorEvent) {
                     SensorManager.getRotationMatrixFromVector(rotMatrix, event.values)
                     SensorManager.getOrientation(rotMatrix, orient)
-                    val nextDeg = ((Math.toDegrees(orient[0].toDouble()) + 360.0) % 360.0).toFloat()
-                    if (abs(nextDeg - lastEmitted) >= 0.8f) {
-                        lastEmitted = nextDeg
-                        azimuthDeg = nextDeg
+                    val magneticDeg = ((Math.toDegrees(orient[0].toDouble()) + 360.0) % 360.0).toFloat()
+                    val trueDeg = QiblaMath.applyMagneticDeclination(magneticDeg, magneticDeclination)
+                    smoothedAzimuth = if (smoothedAzimuth < 0f) {
+                        trueDeg
+                    } else {
+                        QiblaMath.smoothAzimuth(smoothedAzimuth, trueDeg, alpha = 0.18f)
+                    }
+                    if (abs(QiblaMath.shortestAngleDelta(smoothedAzimuth, trueAzimuthDeg)) >= 0.4f) {
+                        trueAzimuthDeg = smoothedAzimuth
                     }
                 }
+
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
             val observer = LifecycleEventObserver { _, event ->
@@ -143,10 +141,9 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
         }
     }
 
-    val diffToQibla = ((qiblaBearing - azimuthDeg + 540f) % 360f) - 180f // -180..+180
-    val isAligned = abs(diffToQibla) <= 6f
+    val diffToQibla = QiblaMath.shortestAngleDelta(qiblaBearing, trueAzimuthDeg)
+    val isAligned = abs(diffToQibla) <= 5f
 
-    // Subtle haptic confirmation once when phone aligns with Kaaba
     LaunchedEffect(isAligned) {
         if (isAligned && !wasAligned && hasSensor) {
             runCatching {
@@ -167,46 +164,40 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
         wasAligned = isAligned
     }
 
-    // Smooth continuous rotation (avoids 0/360 snap jump)
-    var continuousDialAngle by remember { mutableFloatStateOf(-azimuthDeg) }
-    LaunchedEffect(azimuthDeg) {
-        val target = -azimuthDeg
-        var delta = ((target - continuousDialAngle + 540f) % 360f) - 180f
-        if (delta < -180f) delta += 360f
-        continuousDialAngle += delta
-    }
-    val smoothDialRotation by animateFloatAsState(
-        targetValue = continuousDialAngle,
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 220f),
+    val dialRotation by animateFloatAsState(
+        targetValue = -trueAzimuthDeg,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 240f),
         label = "qibla_dial"
+    )
+    val needleRotation by animateFloatAsState(
+        targetValue = qiblaBearing - trueAzimuthDeg,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 240f),
+        label = "qibla_needle"
     )
 
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val alignedAccent = if (isAligned) Color(0xFF4ADE80) else SoftGold
     val bgGradient = if (isDarkTheme) {
-        listOf(Color(0xFF061121), EmeraldDark, Color(0xFF132D54))
+        listOf(Color(0xFF061124), EmeraldDark, Color(0xFF10284B))
     } else {
         listOf(Color(0xFFF8F4EC), Color(0xFFF0EADF), Color(0xFFE7DFD0))
     }
-    val cardBg = if (isDarkTheme) Color(0xFF122847).copy(alpha = 0.90f) else Color.White.copy(alpha = 0.95f)
-    val cardText = if (isDarkTheme) Color.White else EmeraldDark
-    val cardSubText = if (isDarkTheme) Color.White.copy(alpha = 0.72f) else Color(0xFF4A5568)
+    val cardBg = if (isDarkTheme) Color(0xFF122847).copy(alpha = 0.9f) else Color.White.copy(alpha = 0.96f)
+    val primaryText = if (isDarkTheme) Color.White else EmeraldDark
+    val secondaryText = if (isDarkTheme) Color.White.copy(alpha = 0.72f) else EmeraldDark.copy(alpha = 0.72f)
+    val goldAccent = if (isDarkTheme) SoftGold else Color(0xFF9C7826)
+    val activeLocationLabel = selectedCity.nameArabic
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = bgGradient
-                )
-            )
+            .background(Brush.verticalGradient(bgGradient))
     ) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
                 DhikriCompactTopBar(
                     title = "اتجاه القبلة",
-                    subtitle = "${selectedCity.nameArabic} • زاوية القبلة ${qiblaBearing.toInt()}°",
+                    subtitle = "$activeLocationLabel • ${qiblaBearing.roundToInt()}° • $distanceKm كم عن الكعبة",
                     onBack = onBack
                 )
             }
@@ -219,20 +210,22 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Sleek City Selector Strip
+                // Unified City Selector Strip
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(compassCities, key = { it.nameArabic }) { city ->
-                        val selected = city == selectedCity
+                    items(cities, key = { it.nameArabic }) { city: PrayerCity ->
+                        val isSelected = city.nameArabic == selectedCity.nameArabic
                         Surface(
-                            modifier = Modifier.clickable { selectedCity = city },
+                            modifier = Modifier.clickable {
+                                selectedCity = city
+                            },
                             shape = RoundedCornerShape(14.dp),
-                            color = if (selected) SoftGold else cardBg,
+                            color = if (isSelected) SoftGold else cardBg,
                             border = BorderStroke(
                                 1.dp,
-                                if (selected) Color(0xFFFFE8A3) else SoftGold.copy(alpha = 0.35f)
+                                if (isSelected) Color(0xFFFFE599) else SoftGold.copy(alpha = 0.45f)
                             )
                         ) {
                             Row(
@@ -240,18 +233,13 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                if (selected) {
-                                    Icon(
-                                        Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = Color(0xFF1F1604),
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                if (isSelected) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF1F1604), modifier = Modifier.size(14.dp))
                                 }
                                 Text(
                                     text = city.nameArabic,
-                                    color = if (selected) Color(0xFF1F1604) else cardText,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color(0xFF1F1604) else primaryText,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp
                                 )
                             }
@@ -259,237 +247,207 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                     }
                 }
 
-                // 2. Live Alignment Status Pill
+                // Alignment Status Pill
+                val statusText = when {
+                    !hasSensor -> "لا يتوفر حساس بوصلة — اتجه نحو الزاوية ${qiblaBearing.roundToInt()}° من الشمال"
+                    isAligned -> "أنت الآن باتجاه القبلة تماماً"
+                    diffToQibla > 0 -> "أدِر الهاتف قليلاً نحو اليمين (${abs(diffToQibla).roundToInt()}°)"
+                    else -> "أدِر الهاتف قليلاً نحو اليسار (${abs(diffToQibla).roundToInt()}°)"
+                }
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (isAligned) Color(0xFF14472A).copy(alpha = 0.92f) else cardBg,
-                    border = BorderStroke(1.2.dp, alignedAccent.copy(alpha = 0.85f)),
-                    shadowElevation = 6.dp
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isAligned && hasSensor) Color(0xFF135E3A) else cardBg,
+                    border = BorderStroke(1.2.dp, if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold.copy(alpha = 0.6f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = if (isAligned) Icons.Default.CheckCircle else Icons.Default.Explore,
+                            imageVector = if (isAligned && hasSensor) Icons.Default.CheckCircle else Icons.Default.Explore,
                             contentDescription = null,
-                            tint = alignedAccent,
-                            modifier = Modifier.size(20.dp)
+                            tint = if (isAligned && hasSensor) Color(0xFF6EF5AE) else goldAccent,
+                            modifier = Modifier.size(19.dp)
                         )
                         Text(
-                            text = when {
-                                !hasSensor -> "زاوية القبلة لـ ${selectedCity.nameArabic}: ${qiblaBearing.toInt()}° من الشمال"
-                                isAligned -> "أنت متجه الآن نحو القبلة الشريفة"
-                                diffToQibla > 0 -> "أدِر الهاتف قليلاً نحو اليمين (${abs(diffToQibla).toInt()}°)"
-                                else -> "أدِر الهاتف قليلاً نحو اليسار (${abs(diffToQibla).toInt()}°)"
-                            },
-                            color = if (isAligned) Color.White else cardText,
+                            text = statusText,
+                            color = if (isAligned && hasSensor) Color.White else primaryText,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.5.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                // 3. Modern Luxury Precision Compass Dial
+                // Luxury Compass Dial
                 Box(
-                    modifier = Modifier.size(308.dp),
+                    modifier = Modifier.size(286.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Fixed top alignment pointer triangle
-                    Canvas(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .size(22.dp)
-                    ) {
-                        val tri = Path().apply {
-                            moveTo(size.width / 2f, size.height)
-                            lineTo(0f, 0f)
-                            lineTo(size.width, 0f)
-                            close()
-                        }
-                        drawPath(tri, color = alignedAccent)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val outerR = size.minDimension / 2f - 10.dp.toPx()
+
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color(0xFF153461), Color(0xFF0A1D38), Color(0xFF050F1F)),
+                                center = Offset(cx, cy),
+                                radius = outerR
+                            ),
+                            radius = outerR
+                        )
+                        drawCircle(
+                            color = if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold,
+                            radius = outerR,
+                            style = Stroke(width = 3.dp.toPx())
+                        )
+                        drawCircle(
+                            color = SoftGold.copy(alpha = 0.28f),
+                            radius = outerR * 0.72f,
+                            style = Stroke(width = 1.dp.toPx())
+                        )
                     }
 
-                    // Outer metallic glowing bezel
+                    // Rotating Degree Ring & Cardinal Directions (True Geographic North!)
                     Box(
                         modifier = Modifier
-                            .size(282.dp)
-                            .shadow(18.dp, CircleShape)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(Color(0xFF193C6E), Color(0xFF0B1F3B), Color(0xFF06101F))
-                                )
-                            )
-                            .border(
-                                width = if (isAligned) 3.dp else 2.dp,
-                                brush = Brush.sweepGradient(
-                                    listOf(alignedAccent, Color(0xFFFFE8A3), alignedAccent.copy(alpha = 0.55f), alignedAccent)
-                                ),
-                                shape = CircleShape
-                            ),
+                            .size(262.dp)
+                            .rotate(dialRotation),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Rotating Compass Rose + Degree Ticks + Qibla Needle
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .rotate(smoothDialRotation),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                                val cx = size.width / 2f
-                                val cy = size.height / 2f
-                                val outerR = size.minDimension / 2f
-
-                                // Inner subtle concentric rings
-                                drawCircle(
-                                    color = SoftGold.copy(alpha = 0.22f),
-                                    radius = outerR * 0.78f,
-                                    style = Stroke(width = 1.2.dp.toPx())
-                                )
-                                drawCircle(
-                                    color = Color.White.copy(alpha = 0.08f),
-                                    radius = outerR * 0.45f,
-                                    style = Stroke(width = 1.dp.toPx())
-                                )
-
-                                // 72 precision degree ticks (every 5 degrees)
-                                for (deg in 0 until 360 step 5) {
-                                    val rad = Math.toRadians(deg.toDouble() - 90.0)
-                                    val isMajor = deg % 30 == 0
-                                    val isCardinal = deg % 90 == 0
-                                    val innerR = outerR * when {
-                                        isCardinal -> 0.80f
-                                        isMajor -> 0.85f
-                                        else -> 0.91f
-                                    }
-                                    val start = Offset(
-                                        cx + (cos(rad) * innerR).toFloat(),
-                                        cy + (sin(rad) * innerR).toFloat()
-                                    )
-                                    val end = Offset(
-                                        cx + (cos(rad) * outerR).toFloat(),
-                                        cy + (sin(rad) * outerR).toFloat()
-                                    )
-                                    drawLine(
-                                        color = when {
-                                            deg == 0 -> Color(0xFFEF4444)
-                                            isMajor -> SoftGold
-                                            else -> Color.White.copy(alpha = 0.35f)
-                                        },
-                                        start = start,
-                                        end = end,
-                                        strokeWidth = if (isCardinal) 3.dp.toPx() else if (isMajor) 2.dp.toPx() else 1.dp.toPx(),
-                                        cap = StrokeCap.Round
-                                    )
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val cx = size.width / 2f
+                            val cy = size.height / 2f
+                            val r = size.minDimension / 2f - 6.dp.toPx()
+                            for (deg in 0 until 360 step 5) {
+                                val rad = Math.toRadians((deg - 90).toDouble())
+                                val isMajor = deg % 90 == 0
+                                val isMid = deg % 30 == 0
+                                val len = when {
+                                    isMajor -> 16.dp.toPx()
+                                    isMid -> 11.dp.toPx()
+                                    else -> 6.dp.toPx()
                                 }
-                            }
-
-                            // Arabic Cardinal Directions (N, S, E, W)
-                            Text("ش", color = Color(0xFFF87171), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 34.dp))
-                            Text("ج", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp))
-                            Text("ق", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 36.dp))
-                            Text("غ", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 36.dp))
-
-                            // Qibla Pointer Needle & Glowing Kaaba Medallion (rotated to exact qiblaBearing)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .rotate(qiblaBearing),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    val cx = size.width / 2f
-                                    val cy = size.height / 2f
-                                    val tipY = cy - (size.minDimension * 0.33f)
-                                    val tailY = cy + (size.minDimension * 0.24f)
-
-                                    // Golden pointer beam toward Kaaba
-                                    val needle = Path().apply {
-                                        moveTo(cx, tipY)
-                                        lineTo(cx - 8.dp.toPx(), cy)
-                                        lineTo(cx, tailY)
-                                        lineTo(cx + 8.dp.toPx(), cy)
-                                        close()
-                                    }
-                                    drawPath(
-                                        path = needle,
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(alignedAccent, SoftGold, Color(0xFF7A5610))
-                                        )
-                                    )
-                                }
-
-                                // Circular Kaaba Medallion at needle tip
-                                Image(
-                                    painter = painterResource(id = R.drawable.kaaba_icon),
-                                    contentDescription = "الكعبة المشرفة",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .padding(top = 18.dp)
-                                        .size(44.dp)
-                                        .shadow(8.dp, CircleShape)
-                                        .clip(CircleShape)
-                                        .border(2.dp, alignedAccent, CircleShape)
+                                val start = Offset(cx + (r - len) * cos(rad).toFloat(), cy + (r - len) * sin(rad).toFloat())
+                                val end = Offset(cx + r * cos(rad).toFloat(), cy + r * sin(rad).toFloat())
+                                drawLine(
+                                    color = when {
+                                        deg == 0 -> Color(0xFFFF6B6B)
+                                        isMajor -> SoftGold
+                                        isMid -> SoftGold.copy(alpha = 0.65f)
+                                        else -> Color.White.copy(alpha = 0.25f)
+                                    },
+                                    start = start,
+                                    end = end,
+                                    strokeWidth = if (isMajor) 2.5.dp.toPx() else 1.2.dp.toPx(),
+                                    cap = StrokeCap.Round
                                 )
                             }
                         }
 
-                        // Center Golden Pivot Jewel
+                        Text("ش", color = Color(0xFFFF6B6B), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                        Text("ج", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
+                        Text("ق", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp))
+                        Text("غ", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 24.dp))
+                    }
+
+                    // Rotating Qibla Needle + Kaaba Badge
+                    Box(
+                        modifier = Modifier
+                            .size(236.dp)
+                            .rotate(needleRotation),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val cx = size.width / 2f
+                            val cy = size.height / 2f
+                            val tipY = 30.dp.toPx()
+                            val path = Path().apply {
+                                moveTo(cx, tipY)
+                                lineTo(cx - 10.dp.toPx(), cy)
+                                lineTo(cx + 10.dp.toPx(), cy)
+                                close()
+                            }
+                            drawPath(
+                                path = path,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        if (isAligned && hasSensor) Color(0xFF5BE39D) else Color(0xFFFFE599),
+                                        if (isAligned && hasSensor) Color(0xFF1F8A56) else SoftGold
+                                    )
+                                )
+                            )
+                        }
                         Box(
                             modifier = Modifier
-                                .size(22.dp)
+                                .align(Alignment.TopCenter)
+                                .padding(top = 2.dp)
+                                .size(38.dp)
                                 .shadow(6.dp, CircleShape)
                                 .clip(CircleShape)
-                                .background(Brush.radialGradient(listOf(Color(0xFFFFF2B8), SoftGold, Color(0xFF8B6510))))
+                                .background(EmeraldDark)
+                                .border(1.5.dp, if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.kaaba_icon),
+                                contentDescription = "الكعبة المشرفة",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(SoftGold)
                                 .border(2.dp, EmeraldDark, CircleShape)
                         )
                     }
                 }
 
-                // 4. Bottom Readout & Calibration Tip Card
+                // Bottom Telemetry Card (True North corrected)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     color = cardBg,
-                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.4f))
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.45f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("اتجاه القبلة", color = SoftGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${qiblaBearing.toInt()}°", color = cardText, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("اتجاه القبلة", color = goldAccent, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${qiblaBearing.roundToInt()}°", color = primaryText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                             }
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(32.dp)
-                                    .background(Color.White.copy(alpha = 0.18f))
-                            )
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("اتجاه الهاتف", color = SoftGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${azimuthDeg.toInt()}°", color = cardText, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("الشمال الحقيقي", color = goldAccent, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${trueAzimuthDeg.roundToInt()}°", color = primaryText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("الانحراف", color = goldAccent, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${"%+.1f".format(magneticDeclination)}°", color = primaryText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         Text(
-                            text = "لأفضل دقة، ضع الهاتف بشكل مستوٍ وأبعده عن المعادن والمغناطيس",
-                            color = cardSubText,
+                            text = "مُصحّح للشمال الجغرافي الحقيقي (GeomagneticField) • ضع الهاتف بشكل مستوٍ بعيداً عن المعادن",
+                            color = secondaryText,
                             fontSize = 11.sp,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
             }
         }
     }
+
 }
