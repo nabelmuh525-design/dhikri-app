@@ -623,8 +623,8 @@ fun HomeScreen(
                     onClick = onOpenFavorites
                 )
                 HomeGradientCard(
-                    title = "البودكاست الإسلامي",
-                    subtitle = "10 برامج وسيرة وتأملات",
+                    title = "بودكاست",
+                    subtitle = "برامج وسيرة وتأملات",
                     icon = Icons.Default.Podcasts,
                     colors = listOf(Color(0xFF28588A), Color(0xFF0E294D)),
                     contentColor = Color.White,

@@ -43,9 +43,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -71,11 +73,14 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
     val activeLat = selectedCity.latitude
     val activeLon = selectedCity.longitude
 
+    // Normalized true geographic azimuth [0, 360) for readouts & alignment check
     var trueAzimuthDeg by remember { mutableFloatStateOf(0f) }
+    // Continuous unwrapped azimuth for smooth rotation without 359° -> 0° spin glitch
+    var continuousAzimuthDeg by remember { mutableFloatStateOf(0f) }
     var hasSensor by remember { mutableStateOf(true) }
     var wasAligned by remember { mutableStateOf(false) }
 
-    // True geographic Qibla bearing & distance using verified Kaaba coordinates
+    // True geographic Qibla bearing & distance using verified WGS-84 Kaaba coordinates
     val qiblaBearing = remember(activeLat, activeLon) {
         QiblaMath.calculateQiblaBearing(activeLat, activeLon).toFloat()
     }
@@ -94,45 +99,123 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
         }.getOrDefault(0f)
     }
 
-    // Lifecycle-bound compass sensor with circular low-pass filter & accuracy tracking
+    // Lifecycle-bound compass sensor with ROTATION_VECTOR + ACCEL/MAG fallback, tilt compensation & continuous unwrapping
     DisposableEffect(context, lifecycleOwner, magneticDeclination) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val rotSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        if (rotSensor == null) {
+        val accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val useRotVector = rotSensor != null
+
+        if (!useRotVector && (accelSensor == null || magSensor == null)) {
             hasSensor = false
             onDispose { }
         } else {
             var smoothedAzimuth = -1f
+            var unwrappedAzimuth = 0f
+            val gravity = FloatArray(3)
+            val geomagnetic = FloatArray(3)
+            var hasGravity = false
+            var hasGeomagnetic = false
+
+            fun publishTrueAzimuth(trueDeg: Float) {
+                if (smoothedAzimuth < 0f) {
+                    smoothedAzimuth = trueDeg
+                    unwrappedAzimuth = trueDeg
+                    trueAzimuthDeg = trueDeg
+                    continuousAzimuthDeg = trueDeg
+                    return
+                }
+                val nextSmoothed = QiblaMath.smoothAzimuth(smoothedAzimuth, trueDeg, alpha = 0.15f)
+                val step = QiblaMath.shortestAngleDelta(nextSmoothed, smoothedAzimuth)
+                if (abs(step) >= 0.35f) {
+                    smoothedAzimuth = nextSmoothed
+                    unwrappedAzimuth += step
+                    trueAzimuthDeg = nextSmoothed
+                    continuousAzimuthDeg = unwrappedAzimuth
+                }
+            }
+
             val listener = object : SensorEventListener {
                 val rotMatrix = FloatArray(9)
+                val remappedMatrix = FloatArray(9)
                 val orient = FloatArray(3)
+
                 override fun onSensorChanged(event: SensorEvent) {
-                    SensorManager.getRotationMatrixFromVector(rotMatrix, event.values)
+                    val gotMatrix = when (event.sensor.type) {
+                        Sensor.TYPE_ROTATION_VECTOR -> {
+                            // Truncate to 4 floats for ColorOS/Xiaomi/Samsung HAL compatibility
+                            val safeVec = if (event.values.size > 4) {
+                                floatArrayOf(event.values[0], event.values[1], event.values[2], event.values[3])
+                            } else {
+                                event.values
+                            }
+                            SensorManager.getRotationMatrixFromVector(rotMatrix, safeVec)
+                            true
+                        }
+                        Sensor.TYPE_ACCELEROMETER -> {
+                            val a = 0.2f
+                            for (i in 0..2) {
+                                gravity[i] = if (hasGravity) gravity[i] + a * (event.values[i] - gravity[i]) else event.values[i]
+                            }
+                            hasGravity = true
+                            hasGeomagnetic && SensorManager.getRotationMatrix(rotMatrix, null, gravity, geomagnetic)
+                        }
+                        Sensor.TYPE_MAGNETIC_FIELD -> {
+                            val a = 0.2f
+                            for (i in 0..2) {
+                                geomagnetic[i] = if (hasGeomagnetic) geomagnetic[i] + a * (event.values[i] - geomagnetic[i]) else event.values[i]
+                            }
+                            hasGeomagnetic = true
+                            hasGravity && SensorManager.getRotationMatrix(rotMatrix, null, gravity, geomagnetic)
+                        }
+                        else -> false
+                    }
+
+                    if (!gotMatrix) return
+
                     SensorManager.getOrientation(rotMatrix, orient)
+                    val pitchDeg = Math.toDegrees(orient[1].toDouble())
+                    // If user holds the phone tilted upright (> 55°), remap Z axis so heading stays accurate
+                    val activeMatrix = if (abs(pitchDeg) > 55.0) {
+                        SensorManager.remapCoordinateSystem(
+                            rotMatrix,
+                            SensorManager.AXIS_X,
+                            SensorManager.AXIS_Z,
+                            remappedMatrix
+                        )
+                        remappedMatrix
+                    } else {
+                        rotMatrix
+                    }
+                    SensorManager.getOrientation(activeMatrix, orient)
                     val magneticDeg = ((Math.toDegrees(orient[0].toDouble()) + 360.0) % 360.0).toFloat()
                     val trueDeg = QiblaMath.applyMagneticDeclination(magneticDeg, magneticDeclination)
-                    smoothedAzimuth = if (smoothedAzimuth < 0f) {
-                        trueDeg
-                    } else {
-                        QiblaMath.smoothAzimuth(smoothedAzimuth, trueDeg, alpha = 0.18f)
-                    }
-                    if (abs(QiblaMath.shortestAngleDelta(smoothedAzimuth, trueAzimuthDeg)) >= 0.4f) {
-                        trueAzimuthDeg = smoothedAzimuth
-                    }
+                    publishTrueAzimuth(trueDeg)
                 }
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
+
+            fun registerSensors() {
+                if (useRotVector) {
+                    sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_GAME)
+                } else {
+                    sensorManager.registerListener(listener, accelSensor, SensorManager.SENSOR_DELAY_GAME)
+                    sensorManager.registerListener(listener, magSensor, SensorManager.SENSOR_DELAY_GAME)
+                }
+            }
+
             val observer = LifecycleEventObserver { _, event ->
                 when (event) {
-                    Lifecycle.Event.ON_RESUME -> sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_UI)
+                    Lifecycle.Event.ON_RESUME -> registerSensors()
                     Lifecycle.Event.ON_PAUSE -> sensorManager.unregisterListener(listener)
                     else -> Unit
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                sensorManager.registerListener(listener, rotSensor, SensorManager.SENSOR_DELAY_UI)
+                registerSensors()
             }
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
@@ -164,14 +247,15 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
         wasAligned = isAligned
     }
 
+    // Continuous rotation values prevent 359° -> 0° reverse spinning
     val dialRotation by animateFloatAsState(
-        targetValue = -trueAzimuthDeg,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 240f),
+        targetValue = -continuousAzimuthDeg,
+        animationSpec = spring(dampingRatio = 0.88f, stiffness = 220f),
         label = "qibla_dial"
     )
     val needleRotation by animateFloatAsState(
-        targetValue = qiblaBearing - trueAzimuthDeg,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 240f),
+        targetValue = qiblaBearing - continuousAzimuthDeg,
+        animationSpec = spring(dampingRatio = 0.88f, stiffness = 220f),
         label = "qibla_needle"
     )
 
@@ -280,131 +364,134 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
                     }
                 }
 
-                // Luxury Compass Dial
-                Box(
-                    modifier = Modifier.size(286.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val cx = size.width / 2f
-                        val cy = size.height / 2f
-                        val outerR = size.minDimension / 2f - 10.dp.toPx()
+                // Luxury Compass Dial — MUST be LTR so East (ق) is physically RIGHT (90°) and West (غ) is LEFT (270°)
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Box(
+                        modifier = Modifier.size(286.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val cx = size.width / 2f
+                            val cy = size.height / 2f
+                            val outerR = size.minDimension / 2f - 10.dp.toPx()
 
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Color(0xFF153461), Color(0xFF0A1D38), Color(0xFF050F1F)),
-                                center = Offset(cx, cy),
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(Color(0xFF153461), Color(0xFF0A1D38), Color(0xFF050F1F)),
+                                    center = Offset(cx, cy),
+                                    radius = outerR
+                                ),
                                 radius = outerR
-                            ),
-                            radius = outerR
-                        )
-                        drawCircle(
-                            color = if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold,
-                            radius = outerR,
-                            style = Stroke(width = 3.dp.toPx())
-                        )
-                        drawCircle(
-                            color = SoftGold.copy(alpha = 0.28f),
-                            radius = outerR * 0.72f,
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-                    }
-
-                    // Rotating Degree Ring & Cardinal Directions (True Geographic North!)
-                    Box(
-                        modifier = Modifier
-                            .size(262.dp)
-                            .rotate(dialRotation),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val cx = size.width / 2f
-                            val cy = size.height / 2f
-                            val r = size.minDimension / 2f - 6.dp.toPx()
-                            for (deg in 0 until 360 step 5) {
-                                val rad = Math.toRadians((deg - 90).toDouble())
-                                val isMajor = deg % 90 == 0
-                                val isMid = deg % 30 == 0
-                                val len = when {
-                                    isMajor -> 16.dp.toPx()
-                                    isMid -> 11.dp.toPx()
-                                    else -> 6.dp.toPx()
-                                }
-                                val start = Offset(cx + (r - len) * cos(rad).toFloat(), cy + (r - len) * sin(rad).toFloat())
-                                val end = Offset(cx + r * cos(rad).toFloat(), cy + r * sin(rad).toFloat())
-                                drawLine(
-                                    color = when {
-                                        deg == 0 -> Color(0xFFFF6B6B)
-                                        isMajor -> SoftGold
-                                        isMid -> SoftGold.copy(alpha = 0.65f)
-                                        else -> Color.White.copy(alpha = 0.25f)
-                                    },
-                                    start = start,
-                                    end = end,
-                                    strokeWidth = if (isMajor) 2.5.dp.toPx() else 1.2.dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            }
-                        }
-
-                        Text("ش", color = Color(0xFFFF6B6B), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-                        Text("ج", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
-                        Text("ق", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp))
-                        Text("غ", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 24.dp))
-                    }
-
-                    // Rotating Qibla Needle + Kaaba Badge
-                    Box(
-                        modifier = Modifier
-                            .size(236.dp)
-                            .rotate(needleRotation),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val cx = size.width / 2f
-                            val cy = size.height / 2f
-                            val tipY = 30.dp.toPx()
-                            val path = Path().apply {
-                                moveTo(cx, tipY)
-                                lineTo(cx - 10.dp.toPx(), cy)
-                                lineTo(cx + 10.dp.toPx(), cy)
-                                close()
-                            }
-                            drawPath(
-                                path = path,
-                                brush = Brush.verticalGradient(
-                                    listOf(
-                                        if (isAligned && hasSensor) Color(0xFF5BE39D) else Color(0xFFFFE599),
-                                        if (isAligned && hasSensor) Color(0xFF1F8A56) else SoftGold
-                                    )
-                                )
+                            )
+                            drawCircle(
+                                color = if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold,
+                                radius = outerR,
+                                style = Stroke(width = 3.dp.toPx())
+                            )
+                            drawCircle(
+                                color = SoftGold.copy(alpha = 0.28f),
+                                radius = outerR * 0.72f,
+                                style = Stroke(width = 1.dp.toPx())
                             )
                         }
+
+                        // Rotating Degree Ring & Cardinal Directions (True Geographic North)
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 2.dp)
-                                .size(38.dp)
-                                .shadow(6.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(EmeraldDark)
-                                .border(1.5.dp, if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold, CircleShape),
+                                .size(262.dp)
+                                .rotate(dialRotation),
                             contentAlignment = Alignment.Center
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.kaaba_icon),
-                                contentDescription = "الكعبة المشرفة",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val cx = size.width / 2f
+                                val cy = size.height / 2f
+                                val r = size.minDimension / 2f - 6.dp.toPx()
+                                for (deg in 0 until 360 step 5) {
+                                    val rad = Math.toRadians((deg - 90).toDouble())
+                                    val isMajor = deg % 90 == 0
+                                    val isMid = deg % 30 == 0
+                                    val len = when {
+                                        isMajor -> 16.dp.toPx()
+                                        isMid -> 11.dp.toPx()
+                                        else -> 6.dp.toPx()
+                                    }
+                                    val start = Offset(cx + (r - len) * cos(rad).toFloat(), cy + (r - len) * sin(rad).toFloat())
+                                    val end = Offset(cx + r * cos(rad).toFloat(), cy + r * sin(rad).toFloat())
+                                    drawLine(
+                                        color = when {
+                                            deg == 0 -> Color(0xFFFF6B6B)
+                                            isMajor -> SoftGold
+                                            isMid -> SoftGold.copy(alpha = 0.65f)
+                                            else -> Color.White.copy(alpha = 0.25f)
+                                        },
+                                        start = start,
+                                        end = end,
+                                        strokeWidth = if (isMajor) 2.5.dp.toPx() else 1.2.dp.toPx(),
+                                        cap = StrokeCap.Round
+                                    )
+                                }
+                            }
+
+                            // Physically verified in LTR: North=Top, South=Bottom, East(ق)=Right, West(غ)=Left
+                            Text("ش", color = Color(0xFFFF6B6B), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                            Text("ج", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
+                            Text("ق", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp))
+                            Text("غ", color = SoftGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 24.dp))
                         }
+
+                        // Rotating Qibla Needle + Kaaba Badge
                         Box(
                             modifier = Modifier
-                                .size(18.dp)
-                                .clip(CircleShape)
-                                .background(SoftGold)
-                                .border(2.dp, EmeraldDark, CircleShape)
-                        )
+                                .size(236.dp)
+                                .rotate(needleRotation),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val cx = size.width / 2f
+                                val cy = size.height / 2f
+                                val tipY = 30.dp.toPx()
+                                val path = Path().apply {
+                                    moveTo(cx, tipY)
+                                    lineTo(cx - 10.dp.toPx(), cy)
+                                    lineTo(cx + 10.dp.toPx(), cy)
+                                    close()
+                                }
+                                drawPath(
+                                    path = path,
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            if (isAligned && hasSensor) Color(0xFF5BE39D) else Color(0xFFFFE599),
+                                            if (isAligned && hasSensor) Color(0xFF1F8A56) else SoftGold
+                                        )
+                                    )
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 2.dp)
+                                    .size(38.dp)
+                                    .shadow(6.dp, CircleShape)
+                                    .clip(CircleShape)
+                                    .background(EmeraldDark)
+                                    .border(1.5.dp, if (isAligned && hasSensor) Color(0xFF5BE39D) else SoftGold, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.kaaba_icon),
+                                    contentDescription = "الكعبة المشرفة",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(SoftGold)
+                                    .border(2.dp, EmeraldDark, CircleShape)
+                            )
+                        }
                     }
                 }
 
@@ -449,5 +536,4 @@ fun QiblaCompassScreen(onBack: (() -> Unit)? = null) {
             }
         }
     }
-
 }

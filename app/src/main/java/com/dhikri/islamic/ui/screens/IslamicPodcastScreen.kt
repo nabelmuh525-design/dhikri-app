@@ -1,5 +1,6 @@
 package com.dhikri.islamic.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -54,6 +55,10 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
     var episodeQuery by remember { mutableStateOf("") }
     var offlineOnlyFilter by remember { mutableStateOf(false) }
 
+    BackHandler(enabled = selectedShow != null) {
+        selectedShow = null
+    }
+
     // Download progress map (episodeId -> 0..100) and refresh trigger for downloaded status
     val downloadProgress = remember { mutableStateMapOf<String, Int>() }
     var storageVersion by remember { mutableIntStateOf(0) }
@@ -103,8 +108,8 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             DhikriCompactTopBar(
-                title = selectedShow?.titleArabic ?: "البودكاست الإسلامي",
-                subtitle = selectedShow?.hostArabic ?: "10 برامج • تشغيل بالخلفية وتنزيل أوفلاين",
+                title = selectedShow?.titleArabic ?: "بودكاست",
+                subtitle = selectedShow?.hostArabic ?: "تشغيل بالخلفية وتنزيل أوفلاين",
                 onBack = {
                     if (selectedShow != null) {
                         selectedShow = null
