@@ -47,6 +47,9 @@ jobs:
       - name: Run Unit Tests
         run: gradle testDebugUnitTest --stacktrace
 
+      - name: Build Debug APK
+        run: gradle assembleDebug --stacktrace
+
       - name: Build Release APK
         env:
           DHIKRI_KEYSTORE_PASSWORD: ${{ secrets.DHIKRI_KEYSTORE_PASSWORD }}
@@ -61,17 +64,20 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      - name: Extract App Version & Publish GitHub Release
+      - name: Extract App Version, Compute SHA-256 & Prepare Release Assets
         id: meta
         run: |
           VERSION=$(grep 'versionName' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           cp app/build/outputs/apk/release/*.apk "DHIKRI-v${VERSION}.apk"
+          sha256sum "DHIKRI-v${VERSION}.apk" > "DHIKRI-v${VERSION}.apk.sha256"
 
       - name: Publish Release for In-App Auto-Update
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.meta.outputs.version }}
           name: "ذِكري v${{ steps.meta.outputs.version }}"
-          body: "إصدار تطبيق ذِكري v${{ steps.meta.outputs.version }} — التحديث التلقائي المباشر."
-          files: DHIKRI-v${{ steps.meta.outputs.version }}.apk
+          body: "إصدار تطبيق ذِكري v${{ steps.meta.outputs.version }} — التحديث التلقائي الموثّق ببصمة SHA-256."
+          files: |
+            DHIKRI-v${{ steps.meta.outputs.version }}.apk
+            DHIKRI-v${{ steps.meta.outputs.version }}.apk.sha256
