@@ -11,10 +11,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,6 +28,8 @@ import com.dhikri.islamic.ui.theme.SoftGold
 object WhatsNewTracker {
     private const val PREFS_NAME = "dhikri_whats_new_prefs"
     private const val KEY_SEEN_VERSION = "last_seen_version_name"
+    private const val KEY_DYNAMIC_VERSION = "dynamic_notes_version"
+    private const val KEY_DYNAMIC_NOTES = "dynamic_notes_body"
 
     fun shouldShowForCurrentVersion(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -38,19 +42,52 @@ object WhatsNewTracker {
         prefs.edit().putString(KEY_SEEN_VERSION, BuildConfig.VERSION_NAME).apply()
     }
 
+    /**
+     * Caches official GitHub Release notes for an upcoming version so What's New
+     * automatically displays the real changes of each release right after updating.
+     */
+    fun saveReleaseNotes(context: Context, versionName: String, rawBody: String) {
+        val cleanVer = versionName.trim().removePrefix("v")
+        if (cleanVer.isBlank() || rawBody.isBlank()) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_DYNAMIC_VERSION, cleanVer)
+            .putString(KEY_DYNAMIC_NOTES, rawBody)
+            .apply()
+    }
+
+    fun highlightsForCurrentVersion(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedVer = prefs.getString(KEY_DYNAMIC_VERSION, null)
+        val savedBody = prefs.getString(KEY_DYNAMIC_NOTES, null)
+        if (savedVer == BuildConfig.VERSION_NAME && !savedBody.isNullOrBlank()) {
+            val parsed = savedBody.lines()
+                .map { it.trim().removePrefix("-").removePrefix("*").removePrefix("•").trim() }
+                .filter { it.length >= 8 && !it.startsWith("#") && !it.startsWith("SHA-256", ignoreCase = true) }
+                .take(5)
+            if (parsed.isNotEmpty()) return parsed
+        }
+        return currentHighlights()
+    }
+
     fun currentHighlights(): List<String> = listOf(
-        "إضافة قسم بودكاست إسلامي متكامل مع حفظ آخر دقيقة وصلت إليها وتنزيل الحلقات للاستماع بدون إنترنت",
-        "تشغيل تلاوات القرآن الكريم والبودكاست في الخلفية وعند قفل الشاشة مع شريط تحكم كامل من شاشة القفل، ودمج التفاسير الثلاثة أوفلاين",
-        "إصلاح دقة بوصلة القبلة: تصحيح انعكاس الشرق والغرب، ومنع الدوران العكسي عند الشمال، وتحسين ثبات الحساس عند إمالة الهاتف"
+        "إضافة سلسلة دروس السيرة النبوية للشيخ بدر المشاري ضمن قسم البودكاست الإسلامي",
+        "ترتيب حلقات جميع البودكاستات من الحلقة الأولى إلى الأخيرة تلقائياً مع زر تبديل سريع وتنسيق تاريخ واضح",
+        "تحديث نافذة «ما الجديد» لتعرض تفاصيل كل إصدار تلقائياً مع الحفاظ على التشغيل بالخلفية وشاشة القفل وإصلاح دقة القبلة"
     )
 }
 
 @Composable
 fun WhatsNewDialog(
     version: String = BuildConfig.VERSION_NAME,
-    highlights: List<String> = WhatsNewTracker.currentHighlights(),
+    highlights: List<String>? = null,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val displayHighlights = remember(version, highlights) {
+        highlights ?: WhatsNewTracker.highlightsForCurrentVersion(context)
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -99,7 +136,7 @@ fun WhatsNewDialog(
                 HorizontalDivider(color = SoftGold.copy(alpha = 0.28f))
 
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    highlights.forEach { item ->
+                    displayHighlights.forEach { item ->
                         Row(
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)

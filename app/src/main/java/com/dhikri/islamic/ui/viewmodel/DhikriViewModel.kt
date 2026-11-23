@@ -10,6 +10,7 @@ import android.content.Context
 import com.dhikri.islamic.data.repository.DhikriRepository
 import com.dhikri.islamic.data.update.AppUpdateInfo
 import com.dhikri.islamic.data.update.AppUpdater
+import com.dhikri.islamic.ui.components.WhatsNewTracker
 import com.dhikri.islamic.data.update.PreAdhanReminderWorker
 import com.dhikri.islamic.data.update.UpdateCheckWorker
 import android.util.LruCache
