@@ -63,11 +63,11 @@ object IslamicPodcastRepository {
             category = PodcastCategory.FAITH
         ),
         PodcastShow(
-            id = "noor_seerah",
-            titleArabic = "نور — السيرة النبوية",
-            hostArabic = "مصطفى حسني",
-            descriptionArabic = "حلقات متسلسلة في السيرة النبوية العطرة وأثر محبة النبي ﷺ في حياتنا اليومية.",
-            rssUrl = "https://anchor.fm/s/ef0fe82c/podcast/rss",
+            id = "badr_mishari_seerah",
+            titleArabic = "دروس السيرة النبوية",
+            hostArabic = "الشيخ بدر المشاري",
+            descriptionArabic = "السيرة النبوية كاملة بأسلوب مؤثر وشيّق من المولد حتى الوفاة للشيخ بدر المشاري.",
+            rssUrl = "https://media.rss.com/prophetic-seerah-badr-mishary/feed.xml",
             category = PodcastCategory.SEERAH
         ),
         PodcastShow(
@@ -190,7 +190,7 @@ object IslamicPodcastRepository {
         var guid = ""
 
         var eventType = parser.eventType
-        while (eventType != XmlPullParser.END_DOCUMENT && episodes.size < 200) {
+        while (eventType != XmlPullParser.END_DOCUMENT && episodes.size < 500) {
             when (eventType) {
                 XmlPullParser.START_TAG -> {
                     val tag = parser.name.lowercase()
@@ -242,7 +242,8 @@ object IslamicPodcastRepository {
             }
             eventType = parser.next()
         }
-        return episodes
+        // RSS feeds list newest episodes first; reverse so all series start from Episode 1 -> Last
+        return episodes.reversed()
     }
 
     private fun safeNextText(parser: XmlPullParser): String {
@@ -260,9 +261,20 @@ object IslamicPodcastRepository {
     }
 
     private fun formatShortDate(raw: String): String {
-        // RSS pubDate is typically "Mon, 18 May 2026 10:00:00 +0000" -> "18 May 2026"
+        // Convert RFC-2822 "Mon, 27 Sep 2024 ..." to clean RTL-safe "2024/09/27"
         val parts = raw.split(" ").filter { it.isNotBlank() }
-        return if (parts.size >= 4) "${parts[1]} ${parts[2]} ${parts[3]}" else raw.take(16)
+        if (parts.size >= 4) {
+            val day = parts[1].padStart(2, '0')
+            val month = when (parts[2].lowercase().take(3)) {
+                "jan" -> "01"; "feb" -> "02"; "mar" -> "03"; "apr" -> "04"
+                "may" -> "05"; "jun" -> "06"; "jul" -> "07"; "aug" -> "08"
+                "sep" -> "09"; "oct" -> "10"; "nov" -> "11"; "dec" -> "12"
+                else -> parts[2]
+            }
+            val year = parts[3]
+            return "$year/$month/$day"
+        }
+        return raw.take(16)
     }
 
     private fun formatDurationText(raw: String): String {

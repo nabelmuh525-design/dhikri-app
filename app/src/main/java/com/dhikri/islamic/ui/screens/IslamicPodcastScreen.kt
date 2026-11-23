@@ -54,6 +54,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
     var loadError by remember { mutableStateOf<String?>(null) }
     var episodeQuery by remember { mutableStateOf("") }
     var offlineOnlyFilter by remember { mutableStateOf(false) }
+    var newestFirst by remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectedShow != null) {
         selectedShow = null
@@ -95,9 +96,10 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
         }
     }
 
-    val filteredEpisodes = remember(episodes, episodeQuery, offlineOnlyFilter, storageVersion) {
+    val filteredEpisodes = remember(episodes, episodeQuery, offlineOnlyFilter, newestFirst, storageVersion) {
         val q = episodeQuery.trim()
-        episodes.filter { ep ->
+        val ordered = if (newestFirst) episodes.reversed() else episodes
+        ordered.filter { ep ->
             val matchesQuery = q.isEmpty() || ep.title.contains(q, ignoreCase = true)
             val matchesOffline = !offlineOnlyFilter || PodcastStorage.isDownloaded(context, ep.id)
             matchesQuery && matchesOffline
@@ -390,34 +392,61 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "الحلقات المتاحة: ${filteredEpisodes.size}",
+                        text = "الحلقات: ${filteredEpisodes.size}",
                         color = secondaryText,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Surface(
-                        modifier = Modifier.clickable { offlineOnlyFilter = !offlineOnlyFilter },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (offlineOnlyFilter) EmeraldDark else cardBg,
-                        border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.clickable { newestFirst = !newestFirst },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (newestFirst) EmeraldDark else cardBg,
+                            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.OfflinePin,
-                                contentDescription = null,
-                                tint = if (offlineOnlyFilter) SoftGold else primaryText,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Text(
-                                text = "المحفوظة أوفلاين فقط",
-                                color = if (offlineOnlyFilter) SoftGold else primaryText,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SwapVert,
+                                    contentDescription = "تبديل الترتيب",
+                                    tint = if (newestFirst) SoftGold else primaryText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = if (newestFirst) "الأحدث أولاً" else "من الأولى",
+                                    color = if (newestFirst) SoftGold else primaryText,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.clickable { offlineOnlyFilter = !offlineOnlyFilter },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (offlineOnlyFilter) EmeraldDark else cardBg,
+                            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OfflinePin,
+                                    contentDescription = null,
+                                    tint = if (offlineOnlyFilter) SoftGold else primaryText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "أوفلاين",
+                                    color = if (offlineOnlyFilter) SoftGold else primaryText,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
