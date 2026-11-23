@@ -59,14 +59,17 @@ object WhatsNewTracker {
     }
 
     fun parseBullets(rawBody: String): List<String> {
+        // Strictly accept ONLY explicit markdown bullet lines (- / * / •) so generic 1-line CI release banners
+        // never overwrite the real version highlights!
         return rawBody.lines()
-            .map { it.trim().removePrefix("-").removePrefix("*").removePrefix("•").trim() }
+            .map { it.trim() }
+            .filter { it.startsWith("- ") || it.startsWith("* ") || it.startsWith("• ") }
+            .map { it.drop(2).trim() }
             .filter {
                 it.length >= 8 &&
-                    !it.startsWith("#") &&
+                    !it.contains("التحديث التلقائي الموثّق") &&
                     !it.startsWith("SHA-256", ignoreCase = true) &&
-                    !it.startsWith("http", ignoreCase = true) &&
-                    !it.startsWith("`")
+                    !it.startsWith("http", ignoreCase = true)
             }
             .take(5)
     }
@@ -116,9 +119,9 @@ object WhatsNewTracker {
     }
 
     fun currentHighlights(): List<String> = listOf(
-        "إضافة مشغّل شفاف أنيق على الشاشة الرئيسية يظهر فقط عند تشغيل القرآن أو البودكاست مع زر إغلاق سريع (✕)",
-        "إيقاف الصوت تلقائياً عند إغلاق التطبيق نهائياً، مع إصلاح زر ترتيب حلقات البودكاست (من الأولى / الأحدث أولاً)",
-        "إضافة قناة دروس الشيخ سمير مصطفى الرسمية، وأزرار الترجيع والتقديم الحديثة (15 ثانية)، والانتقال المباشر للحلقة عند الضغط على المشغّل الشفاف"
+        "ميزة التشغيل التلقائي للسورة التالية في التلاوات وللحلقة التالية في البودكاست أثناء القيادة أو المشي وحتى عند قفل الشاشة",
+        "إضافة مفتاح اختياري لتفعيل أو إيقاف التشغيل التلقائي في كل من شاشة التلاوات وشاشة البودكاست مع دعم أزرار التالي والسابق من سماعات البلوتوث والسيارة",
+        "المشغّل الشفاف على الشاشة الرئيسية مع أزرار التقديم والترجيع الحديثة (15 ثانية) وإيقاف الصوت تلقائياً عند إغلاق التطبيق نهائياً"
     )
 }
 

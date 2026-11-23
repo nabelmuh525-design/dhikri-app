@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dhikri.islamic.data.podcast.PlaybackQueueItem
 import com.dhikri.islamic.data.podcast.PodcastPlaybackService
 import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 import com.dhikri.islamic.ui.theme.EmeraldDark
@@ -396,14 +397,34 @@ fun RecitationsHubScreen(
                 }
             }
 
-            PodcastPlaybackService.playDirectAudio(
-                context = context,
-                groupId = "quran_${reciter.id}",
-                subtitle = "القرآن الكريم • ${reciter.nameArabic}",
-                trackId = trackId,
-                title = "سورة $surahName",
-                audioPathOrUrl = resolvedTarget
-            )
+            val resolvedBase = if (resolvedTarget.startsWith("http")) {
+                resolvedTarget.substringBeforeLast("/") + "/"
+            } else {
+                (quranicAudioServers[reciter.id] ?: reciter.quranicAudioDirectUrl).let {
+                    if (it.endsWith("/")) it else "$it/"
+                }
+            }
+            val orderedSurahs = surahs.sortedBy { it.id }
+            val startIdx = orderedSurahs.indexOfFirst { it.id == surahId }.coerceAtLeast(0)
+            val queueItems = orderedSurahs.map { s ->
+                val f = localAudioFile(reciter, s.id)
+                val targetUrlOrPath = if (s.id == surahId) {
+                    resolvedTarget
+                } else if (f.exists() && f.length() > 10_000L) {
+                    f.absolutePath
+                } else {
+                    "$resolvedBase%03d.mp3".format(s.id)
+                }
+                PlaybackQueueItem(
+                    showId = "quran_${reciter.id}",
+                    showTitle = "القرآن الكريم • ${reciter.nameArabic}",
+                    trackId = "quran_${reciter.id}_${s.id}",
+                    title = "سورة ${s.nameArabic}",
+                    audioPathOrUrl = targetUrlOrPath,
+                    saveProgress = false
+                )
+            }
+            PodcastPlaybackService.playDirectQueue(context, queueItems, startIdx)
             statusMessage = "يُتلى الآن: سورة $surahName — ${reciter.nameArabic}"
         }
     }
@@ -597,6 +618,30 @@ fun RecitationsHubScreen(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
                 )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "تشغيل السورة التالية تلقائياً",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Switch(
+                        checked = bgPlayback.autoPlayNext,
+                        onCheckedChange = { PodcastPlaybackService.setAutoPlayNext(context, it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = EmeraldDark,
+                            checkedTrackColor = SoftGold
+                        )
+                    )
+                }
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),

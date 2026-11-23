@@ -25,6 +25,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+data class PlaybackQueueItem(
+    val showId: String,
+    val showTitle: String,
+    val trackId: String,
+    val title: String,
+    val audioPathOrUrl: String,
+    val durationLabel: String = "",
+    val saveProgress: Boolean = true
+)
+
 data class PodcastPlaybackState(
     val showId: String = "",
     val showTitle: String = "",
@@ -39,6 +49,7 @@ data class PodcastPlaybackState(
     val currentPositionMs: Int = 0,
     val durationMs: Int = 0,
     val playbackSpeed: Float = 1.0f,
+    val autoPlayNext: Boolean = true,
     val errorMessage: String? = null
 )
 
@@ -73,6 +84,8 @@ class PodcastPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         ensureChannel()
+        val savedAuto = isAutoPlayNextEnabled(this)
+        _state.value = _state.value.copy(autoPlayNext = savedAuto)
         mediaSession = MediaSession(this, "DhikriPodcastSession").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() = togglePlayPause(forcePlay = true)
@@ -80,6 +93,8 @@ class PodcastPlaybackService : Service() {
                 override fun onFastForward() = seekBy(15_000)
                 override fun onRewind() = seekBy(-15_000)
                 override fun onSeekTo(pos: Long) = seekTo(pos.toInt())
+                override fun onSkipToNext() = playAdjacentInQueue(+1)
+                override fun onSkipToPrevious() = playAdjacentInQueue(-1)
                 override fun onStop() = stopAndClose()
             })
             isActive = true
@@ -124,6 +139,16 @@ class PodcastPlaybackService : Service() {
             ACTION_FORWARD -> seekBy(15_000)
             ACTION_SEEK_TO -> seekTo(intent.getIntExtra(EXTRA_SEEK_MS, 0))
             ACTION_CYCLE_SPEED -> cycleSpeed()
+            ACTION_PLAY_QUEUE_INDEX -> {
+                val idx = intent.getIntExtra(EXTRA_QUEUE_INDEX, 0)
+                playQueueAtIndex(idx)
+            }
+            ACTION_SKIP_NEXT -> playAdjacentInQueue(+1)
+            ACTION_SET_AUTO_PLAY -> {
+                val enabled = intent.getBooleanExtra(EXTRA_AUTO_PLAY, true)
+                saveAutoPlayNext(this, enabled)
+                _state.value = _state.value.copy(autoPlayNext = enabled)
+            }
             ACTION_STOP -> stopAndClose()
         }
         return START_NOT_STICKY
@@ -170,6 +195,7 @@ class PodcastPlaybackService : Service() {
             currentPositionMs = resumeMs,
             durationMs = 0,
             playbackSpeed = if (saveProgress) current.playbackSpeed else 1.0f,
+            autoPlayNext = isAutoPlayNextEnabled(this),
             errorMessage = null
         )
 
@@ -205,9 +231,13 @@ class PodcastPlaybackService : Service() {
             setOnCompletionListener {
                 val st = _state.value
                 if (st.saveProgress) PodcastStorage.savePosition(this@PodcastPlaybackService, st.episodeId, st.durationMs, st.durationMs)
-                _state.value = st.copy(isPlaying = false, currentPositionMs = st.durationMs)
-                updateMediaSessionPlaybackState()
-                updateForegroundNotification()
+                if (st.autoPlayNext && activeQueueIndex + 1 < activeQueue.size) {
+                    playQueueAtIndex(activeQueueIndex + 1)
+                } else {
+                    _state.value = st.copy(isPlaying = false, currentPositionMs = st.durationMs)
+                    updateMediaSessionPlaybackState()
+                    updateForegroundNotification()
+                }
             }
             setOnErrorListener { _, _, _ ->
                 _state.value = _state.value.copy(
@@ -236,6 +266,31 @@ class PodcastPlaybackService : Service() {
                 errorMessage = "تعذر فتح ملف الصوت لهذه الحلقة"
             )
             updateForegroundNotification()
+        }
+    }
+
+    private fun playQueueAtIndex(index: Int) {
+        val list = activeQueue
+        if (index !in list.indices) return
+        activeQueueIndex = index
+        val item = list[index]
+        val isLocal = !item.audioPathOrUrl.startsWith("http", ignoreCase = true)
+        startTrack(
+            showId = item.showId,
+            showTitle = item.showTitle,
+            episodeId = item.trackId,
+            episodeTitle = item.title,
+            audioUrl = item.audioPathOrUrl,
+            durationLabel = item.durationLabel,
+            directLocalPath = if (isLocal) item.audioPathOrUrl else null,
+            saveProgress = item.saveProgress
+        )
+    }
+
+    private fun playAdjacentInQueue(delta: Int) {
+        val target = activeQueueIndex + delta
+        if (target in activeQueue.indices) {
+            playQueueAtIndex(target)
         }
     }
 
@@ -310,7 +365,7 @@ class PodcastPlaybackService : Service() {
     private fun stopAndClose() {
         persistCurrentPosition()
         releasePlayer()
-        _state.value = PodcastPlaybackState()
+        _state.value = PodcastPlaybackState(autoPlayNext = isAutoPlayNextEnabled(this))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -368,6 +423,8 @@ class PodcastPlaybackService : Service() {
                     PlaybackState.ACTION_REWIND or
                     PlaybackState.ACTION_FAST_FORWARD or
                     PlaybackState.ACTION_SEEK_TO or
+                    PlaybackState.ACTION_SKIP_TO_NEXT or
+                    PlaybackState.ACTION_SKIP_TO_PREVIOUS or
                     PlaybackState.ACTION_STOP
             )
             .setState(pbState, st.currentPositionMs.toLong(), if (st.isPlaying) st.playbackSpeed else 0f)
@@ -485,6 +542,19 @@ class PodcastPlaybackService : Service() {
         const val ACTION_SEEK_TO = "com.dhikri.islamic.podcast.SEEK_TO"
         const val ACTION_CYCLE_SPEED = "com.dhikri.islamic.podcast.CYCLE_SPEED"
         const val ACTION_STOP = "com.dhikri.islamic.podcast.STOP"
+        const val ACTION_PLAY_QUEUE_INDEX = "com.dhikri.islamic.podcast.PLAY_QUEUE_INDEX"
+        const val ACTION_SKIP_NEXT = "com.dhikri.islamic.podcast.SKIP_NEXT"
+        const val ACTION_SET_AUTO_PLAY = "com.dhikri.islamic.podcast.SET_AUTO_PLAY"
+
+        private const val EXTRA_QUEUE_INDEX = "queue_index"
+        private const val EXTRA_AUTO_PLAY = "auto_play"
+        private const val PREFS_PLAYBACK = "dhikri_playback_prefs"
+        private const val KEY_AUTO_PLAY_NEXT = "auto_play_next_enabled"
+
+        @Volatile
+        private var activeQueue: List<PlaybackQueueItem> = emptyList()
+        @Volatile
+        private var activeQueueIndex: Int = -1
 
         private const val EXTRA_SHOW_ID = "show_id"
         private const val EXTRA_SHOW_TITLE = "show_title"
@@ -530,6 +600,71 @@ class PodcastPlaybackService : Service() {
                 putExtra(EXTRA_EPISODE_ID, trackId)
                 putExtra(EXTRA_EPISODE_TITLE, title)
                 putExtra(EXTRA_AUDIO_URL, audioPathOrUrl)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun isAutoPlayNextEnabled(context: Context): Boolean {
+            return context.applicationContext
+                .getSharedPreferences(PREFS_PLAYBACK, Context.MODE_PRIVATE)
+                .getBoolean(KEY_AUTO_PLAY_NEXT, true)
+        }
+
+        private fun saveAutoPlayNext(context: Context, enabled: Boolean) {
+            context.applicationContext
+                .getSharedPreferences(PREFS_PLAYBACK, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_AUTO_PLAY_NEXT, enabled)
+                .apply()
+        }
+
+        fun setAutoPlayNext(context: Context, enabled: Boolean) {
+            saveAutoPlayNext(context, enabled)
+            _state.value = _state.value.copy(autoPlayNext = enabled)
+            if (_state.value.episodeId.isNotBlank()) {
+                val intent = Intent(context, PodcastPlaybackService::class.java).apply {
+                    action = ACTION_SET_AUTO_PLAY
+                    putExtra(EXTRA_AUTO_PLAY, enabled)
+                }
+                context.startService(intent)
+            }
+        }
+
+        fun playEpisodeQueue(
+            context: Context,
+            show: PodcastShow,
+            episodes: List<PodcastEpisode>,
+            startIndex: Int
+        ) {
+            if (startIndex !in episodes.indices) return
+            activeQueue = episodes.map { ep ->
+                PlaybackQueueItem(
+                    showId = show.id,
+                    showTitle = show.titleArabic,
+                    trackId = ep.id,
+                    title = ep.title,
+                    audioPathOrUrl = ep.audioUrl,
+                    durationLabel = ep.durationLabel,
+                    saveProgress = true
+                )
+            }
+            val intent = Intent(context, PodcastPlaybackService::class.java).apply {
+                action = ACTION_PLAY_QUEUE_INDEX
+                putExtra(EXTRA_QUEUE_INDEX, startIndex)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun playDirectQueue(
+            context: Context,
+            items: List<PlaybackQueueItem>,
+            startIndex: Int
+        ) {
+            if (startIndex !in items.indices) return
+            activeQueue = items
+            val intent = Intent(context, PodcastPlaybackService::class.java).apply {
+                action = ACTION_PLAY_QUEUE_INDEX
+                putExtra(EXTRA_QUEUE_INDEX, startIndex)
             }
             ContextCompat.startForegroundService(context, intent)
         }

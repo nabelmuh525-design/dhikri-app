@@ -44,6 +44,9 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val playback by PodcastPlaybackService.state.collectAsState()
+    LaunchedEffect(Unit) {
+        PodcastPlaybackService.setAutoPlayNext(context, PodcastPlaybackService.isAutoPlayNextEnabled(context))
+    }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val cardBg = if (isDark) Color(0xFF132642) else Color.White
@@ -59,6 +62,9 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
     var offlineOnlyFilter by remember { mutableStateOf(false) }
     var newestFirst by remember { mutableStateOf(false) }
     val episodeListState = rememberLazyListState()
+    LaunchedEffect(newestFirst) {
+        episodeListState.scrollToItem(0)
+    }
 
     BackHandler(enabled = selectedShow != null) {
         selectedShow = null
@@ -453,6 +459,33 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                             }
                         }
                         Surface(
+                            modifier = Modifier.clickable {
+                                PodcastPlaybackService.setAutoPlayNext(context, !playback.autoPlayNext)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (playback.autoPlayNext) EmeraldDark else cardBg,
+                            border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SkipNext,
+                                    contentDescription = "تشغيل تلقائي للتالي",
+                                    tint = if (playback.autoPlayNext) SoftGold else primaryText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "تلقائي",
+                                    color = if (playback.autoPlayNext) SoftGold else primaryText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Surface(
                             modifier = Modifier.clickable { offlineOnlyFilter = !offlineOnlyFilter },
                             shape = RoundedCornerShape(12.dp),
                             color = if (offlineOnlyFilter) EmeraldDark else cardBg,
@@ -524,7 +557,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 18.dp)
                         ) {
-                            items(filteredEpisodes, key = { it.id }) { ep ->
+                            items(filteredEpisodes, key = { "${newestFirst}_${it.id}" }) { ep ->
                                 val isCurrent = playback.episodeId == ep.id
                                 val downloaded = remember(ep.id, storageVersion) {
                                     PodcastStorage.isDownloaded(context, ep.id)
@@ -537,7 +570,10 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { PodcastPlaybackService.playEpisode(context, activeShow, ep) },
+                                        .clickable {
+                                            val idx = filteredEpisodes.indexOfFirst { it.id == ep.id }.coerceAtLeast(0)
+                                            PodcastPlaybackService.playEpisodeQueue(context, activeShow, filteredEpisodes, idx)
+                                        },
                                     shape = RoundedCornerShape(16.dp),
                                     color = if (isCurrent) EmeraldDark else cardBg,
                                     border = BorderStroke(
