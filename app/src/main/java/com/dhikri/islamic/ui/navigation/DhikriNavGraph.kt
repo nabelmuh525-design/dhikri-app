@@ -71,6 +71,7 @@ object Routes {
     const val ASMA_UL_HUSNA = "asma_ul_husna"
     const val QIBLA = "qibla"
     const val HIJRI = "hijri"
+    const val PODCASTS = "podcasts"
 
     fun mushafPage(page: Int) = "mushaf/${page.coerceIn(1, 604)}"
     fun adhkarDetail(categoryId: Int, mode: String = "all") = "adhkar_detail/$categoryId/$mode"
@@ -158,7 +159,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                         onOpenAdhkarTab = { navigateToTab(BottomTab.Adhkar) },
                         onOpenRecitations = { navController.navigate(Routes.RECITATIONS) },
                         onOpenTasbih = { navController.navigate(Routes.TASBIH) },
-                        onOpenQibla = { navigateToTab(BottomTab.Qibla) },
+                        onOpenPodcasts = { navController.navigate(Routes.PODCASTS) },
                         onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
                         onOpenMore = { navController.navigate(Routes.MORE) },
                         onOpenHijri = { navController.navigate(Routes.HIJRI) }
@@ -257,6 +258,9 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                 }
                 composable(Routes.TASBIH) {
                     TasbihScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
+                composable(Routes.PODCASTS) {
+                    IslamicPodcastScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Routes.DOWNLOADS) {
                     DownloadCenterScreen(viewModel = viewModel, onBack = { navController.popBackStack() })

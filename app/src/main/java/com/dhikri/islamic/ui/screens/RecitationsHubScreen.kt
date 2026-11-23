@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dhikri.islamic.data.podcast.PodcastPlaybackService
 import com.dhikri.islamic.ui.components.DhikriCompactTopBar
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.SoftGold
@@ -306,9 +307,11 @@ fun RecitationsHubScreen(
     var selectedReciter by remember { mutableStateOf<QuranReciterCard?>(null) }
     var quranicAudioServers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var mp3QuranServers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-    var playingSurahId by remember { mutableStateOf<Int?>(null) }
-    var playingSurahName by remember { mutableStateOf<String?>(null) }
+    val bgPlayback by PodcastPlaybackService.state.collectAsState()
+    val playingSurahId: Int? = if (bgPlayback.showId.startsWith("quran_") && (bgPlayback.isPlaying || bgPlayback.isBuffering)) {
+        bgPlayback.episodeId.substringAfterLast("_").toIntOrNull()
+    } else null
+    val playingSurahName: String? = if (playingSurahId != null) bgPlayback.episodeTitle else null
     var downloadingSurahId by remember { mutableStateOf<Int?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var refreshTick by remember { mutableIntStateOf(0) }
@@ -325,19 +328,12 @@ fun RecitationsHubScreen(
     }
 
     fun stopPlayback() {
-        runCatching { mediaPlayer?.stop(); mediaPlayer?.release() }
-        mediaPlayer = null
-        playingSurahId = null
-        playingSurahName = null
+        PodcastPlaybackService.sendAction(context, PodcastPlaybackService.ACTION_STOP)
         statusMessage = null
     }
 
-    DisposableEffect(Unit) {
-        onDispose { stopPlayback() }
-    }
-
+    // Keep Quran recitation playing smoothly in background & when screen is locked!
     BackHandler(enabled = selectedReciter != null) {
-        stopPlayback()
         selectedReciter = null
         searchSurah = ""
     }
@@ -383,14 +379,12 @@ fun RecitationsHubScreen(
     }
 
     fun playSurah(reciter: QuranReciterCard, surahId: Int, surahName: String) {
-        if (playingSurahId == surahId) {
+        val trackId = "quran_${reciter.id}_$surahId"
+        if (bgPlayback.episodeId == trackId && (bgPlayback.isPlaying || bgPlayback.isBuffering)) {
             stopPlayback()
             return
         }
-        stopPlayback()
-        playingSurahId = surahId
-        playingSurahName = "سورة $surahName"
-        statusMessage = "جاري تشغيل سورة $surahName..."
+        statusMessage = "جاري تشغيل سورة $surahName (تعمل بالخلفية وعند قفل الشاشة)..."
 
         scope.launch {
             val localFile = localAudioFile(reciter, surahId)
@@ -402,40 +396,15 @@ fun RecitationsHubScreen(
                 }
             }
 
-            runCatching {
-                val mp = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    )
-                    if (resolvedTarget.startsWith("http")) {
-                        setDataSource(context, Uri.parse(resolvedTarget), mapOf("User-Agent" to "Mozilla/5.0 (Android)"))
-                    } else {
-                        setDataSource(resolvedTarget)
-                    }
-                    setOnPreparedListener {
-                        it.start()
-                        statusMessage = "يُتلى الآن: سورة $surahName — ${reciter.nameArabic}"
-                    }
-                    setOnCompletionListener {
-                        playingSurahId = null
-                        playingSurahName = null
-                        statusMessage = null
-                    }
-                    setOnErrorListener { _, _, _ ->
-                        playingSurahId = null
-                        statusMessage = "تعذّر تشغيل التلاوة — تأكد من الاتصال بالإنترنت"
-                        true
-                    }
-                    prepareAsync()
-                }
-                mediaPlayer = mp
-            }.onFailure {
-                playingSurahId = null
-                statusMessage = "تعذّر بدء التشغيل"
-            }
+            PodcastPlaybackService.playDirectAudio(
+                context = context,
+                groupId = "quran_${reciter.id}",
+                subtitle = "القرآن الكريم • ${reciter.nameArabic}",
+                trackId = trackId,
+                title = "سورة $surahName",
+                audioPathOrUrl = resolvedTarget
+            )
+            statusMessage = "يُتلى الآن: سورة $surahName — ${reciter.nameArabic}"
         }
     }
 

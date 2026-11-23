@@ -13,8 +13,8 @@ android {
         applicationId = "com.dhikri.islamic"
         minSdk = 24
         targetSdk = 35
-        versionCode = 29
-        versionName = "4.0.1"
+        versionCode = 30
+        versionName = "4.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

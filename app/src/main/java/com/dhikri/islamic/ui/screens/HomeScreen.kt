@@ -57,7 +57,7 @@ fun HomeScreen(
     onOpenAdhkarTab: () -> Unit,
     onOpenRecitations: () -> Unit,
     onOpenTasbih: () -> Unit,
-    onOpenQibla: () -> Unit,
+    onOpenPodcasts: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenMore: () -> Unit,
     onOpenHijri: () -> Unit
@@ -623,14 +623,14 @@ fun HomeScreen(
                     onClick = onOpenFavorites
                 )
                 HomeGradientCard(
-                    title = "اتجاه القبلة",
-                    subtitle = "بوصلة الكعبة بدقة",
-                    icon = Icons.Default.Explore,
+                    title = "البودكاست الإسلامي",
+                    subtitle = "10 برامج وسيرة وتأملات",
+                    icon = Icons.Default.Podcasts,
                     colors = listOf(Color(0xFF28588A), Color(0xFF0E294D)),
                     contentColor = Color.White,
                     iconTint = SoftGold,
                     modifier = Modifier.weight(1f),
-                    onClick = onOpenQibla
+                    onClick = onOpenPodcasts
                 )
             }
         }
