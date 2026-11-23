@@ -18,6 +18,7 @@ class DhikriApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         database = DhikriDatabase.getInstance(this)
+        DhikriDatabase.syncBundledTafsirsInBackground(this, database)
         repository = DhikriRepository(this, database)
         settingsRepository = UserSettingsRepository(this)
         UpdateCheckWorker.schedulePeriodicCheck(this)

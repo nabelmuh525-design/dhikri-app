@@ -22,7 +22,7 @@ from pathlib import Path
 DB_PATH = Path("app/src/main/assets/databases/dhikri_database.db")
 API_LIST_URL = "https://quranenc.com/api/v1/translations/list/ar/?localization=ar"
 ALLOWED_HOSTS = {"quranenc.com", "www.quranenc.com", "d.quranenc.com"}
-TARGET_KEYS = ["arabic_moyassar", "arabic_seraj"]
+TARGET_KEYS = ["arabic_moyassar", "arabic_seraj", "arabic_mokhtasar"]
 MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024  # 50 MB zip-bomb safety cap
 SQL_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -105,7 +105,7 @@ def import_from_sqlite_zip(conn: sqlite3.Connection, book_key: str, zip_bytes: b
         (len(rows), version, len(zip_bytes), book_key),
     )
     cur.execute(
-        "UPDATE download_packages SET status = 'INSTALLED', progress_percent = 100, version = ?, size_bytes = ?, sha256_checksum = ? WHERE package_key = ?",
+        "UPDATE download_packages SET status = 'INSTALLED', progress_percent = 100, is_core = 1, version = ?, size_bytes = ?, sha256_checksum = ? WHERE package_key = ?",
         (version, len(zip_bytes), sha, book_key),
     )
     conn.commit()
@@ -142,7 +142,7 @@ def import_via_sura_api(conn: sqlite3.Connection, book_key: str, version: str):
         (len(all_rows), version, book_key),
     )
     cur.execute(
-        "UPDATE download_packages SET status = 'INSTALLED', progress_percent = 100, version = ?, sha256_checksum = ? WHERE package_key = ?",
+        "UPDATE download_packages SET status = 'INSTALLED', progress_percent = 100, is_core = 1, version = ?, sha256_checksum = ? WHERE package_key = ?",
         (version, sha, book_key),
     )
     conn.commit()
