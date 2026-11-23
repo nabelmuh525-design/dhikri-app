@@ -41,6 +41,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import android.widget.Toast
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import com.dhikri.islamic.data.podcast.PodcastPlaybackService
 import com.dhikri.islamic.ui.components.WhatsNewDialog
 import com.dhikri.islamic.ui.components.WhatsNewTracker
 import com.dhikri.islamic.ui.screens.*
@@ -53,6 +56,7 @@ sealed class BottomTab(val route: String, val label: String, val icon: ImageVect
     data object Quran : BottomTab("quran", "القرآن", Icons.Default.MenuBook)
     data object Adhkar : BottomTab("adhkar", "الأذكار", Icons.Default.VolunteerActivism)
     data object Qibla : BottomTab("qibla_tab", "القبلة", Icons.Default.Explore)
+    data object LastPlayed : BottomTab("last_played_action", "آخر استماع", Icons.Default.PlayCircleOutline)
 }
 
 object Routes {
@@ -82,7 +86,7 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
     val navController = rememberNavController()
     val context = LocalContext.current
     var showWhatsNew by remember { mutableStateOf(WhatsNewTracker.shouldShowForCurrentVersion(context)) }
-    val tabs = listOf(BottomTab.Home, BottomTab.Quran, BottomTab.Adhkar, BottomTab.Qibla)
+    val tabs = listOf(BottomTab.Home, BottomTab.Quran, BottomTab.Adhkar, BottomTab.Qibla, BottomTab.LastPlayed)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val updateProgress by viewModel.updateProgress.collectAsState()
@@ -128,9 +132,16 @@ fun DhikriAppShell(viewModel: DhikriViewModel) {
                     tabs = tabs,
                     currentRoute = currentDestination?.route,
                     onSelect = { tab ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                        if (tab == BottomTab.Home || !selected) {
-                            navigateToTab(tab)
+                        if (tab == BottomTab.LastPlayed) {
+                            val ok = PodcastPlaybackService.resumeLastPlayed(context)
+                            if (!ok) {
+                                Toast.makeText(context, "لم تستمع لأي سورة أو حلقة بودكاست بعد", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                            if (tab == BottomTab.Home || !selected) {
+                                navigateToTab(tab)
+                            }
                         }
                     }
                 )

@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dhikri.islamic.data.podcast.PodcastPlaybackService
 import com.dhikri.islamic.data.update.UpdateCheckWorker
 import com.dhikri.islamic.ui.navigation.DhikriAppShell
 import com.dhikri.islamic.ui.theme.DhikriTheme
@@ -106,5 +107,12 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(UpdateCheckWorker.EXTRA_AUTO_UPDATE, false)) {
             autoUpdateRequested.value = true
         }
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            runCatching { PodcastPlaybackService.sendAction(this, PodcastPlaybackService.ACTION_STOP) }
+        }
+        super.onDestroy()
     }
 }

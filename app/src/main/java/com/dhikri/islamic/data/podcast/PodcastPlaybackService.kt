@@ -72,7 +72,7 @@ class PodcastPlaybackService : Service() {
                     val now = System.currentTimeMillis()
                     if (now - lastSaveTickMs >= 3_000L) {
                         lastSaveTickMs = now
-                        if (cur.saveProgress) PodcastStorage.savePosition(this@PodcastPlaybackService, cur.episodeId, pos, dur)
+                        PodcastStorage.savePosition(this@PodcastPlaybackService, cur.episodeId, pos, dur)
                         updateMediaSessionPlaybackState()
                     }
                 }
@@ -176,7 +176,19 @@ class PodcastPlaybackService : Service() {
 
         val localFile = if (directLocalPath != null) java.io.File(directLocalPath) else PodcastStorage.localAudioFile(this, episodeId)
         val offlineAvailable = localFile.exists() && localFile.length() > 10_000L
-        val resumeMs = if (saveProgress) PodcastStorage.getSavedPosition(this, episodeId) else 0
+        val resumeMs = PodcastStorage.getSavedPosition(this, episodeId)
+        PodcastStorage.saveLastPlayed(
+            this,
+            LastPlayedTrack(
+                showId = showId,
+                showTitle = showTitle,
+                trackId = episodeId,
+                title = episodeTitle,
+                audioPathOrUrl = directLocalPath ?: audioUrl,
+                durationLabel = durationLabel,
+                saveProgress = true
+            )
+        )
         val safeUrl = if (audioUrl.startsWith("http", ignoreCase = true)) {
             audioUrl.replaceFirst("http://", "https://", ignoreCase = true)
         } else audioUrl
@@ -230,7 +242,7 @@ class PodcastPlaybackService : Service() {
             }
             setOnCompletionListener {
                 val st = _state.value
-                if (st.saveProgress) PodcastStorage.savePosition(this@PodcastPlaybackService, st.episodeId, st.durationMs, st.durationMs)
+                PodcastStorage.savePosition(this@PodcastPlaybackService, st.episodeId, st.durationMs, st.durationMs)
                 if (st.autoPlayNext && activeQueueIndex + 1 < activeQueue.size) {
                     playQueueAtIndex(activeQueueIndex + 1)
                 } else {
@@ -301,7 +313,7 @@ class PodcastPlaybackService : Service() {
                 mp.pause()
                 val pos = mp.currentPosition.coerceAtLeast(0)
                 val dur = mp.duration.coerceAtLeast(_state.value.durationMs)
-                if (_state.value.saveProgress) PodcastStorage.savePosition(this, _state.value.episodeId, pos, dur)
+                PodcastStorage.savePosition(this, _state.value.episodeId, pos, dur)
                 _state.value = _state.value.copy(isPlaying = false, currentPositionMs = pos, durationMs = dur)
                 mainHandler.removeCallbacks(progressRunnable)
             } else {
@@ -322,7 +334,7 @@ class PodcastPlaybackService : Service() {
             val maxDur = mp.duration.coerceAtLeast(_state.value.durationMs)
             val target = (mp.currentPosition + deltaMs).coerceIn(0, maxDur.coerceAtLeast(0))
             mp.seekTo(target)
-            if (_state.value.saveProgress) PodcastStorage.savePosition(this, _state.value.episodeId, target, maxDur)
+            PodcastStorage.savePosition(this, _state.value.episodeId, target, maxDur)
             _state.value = _state.value.copy(currentPositionMs = target, durationMs = maxDur)
             updateMediaSessionPlaybackState()
         }
@@ -334,7 +346,7 @@ class PodcastPlaybackService : Service() {
             val maxDur = mp.duration.coerceAtLeast(_state.value.durationMs)
             val safe = targetMs.coerceIn(0, maxDur.coerceAtLeast(0))
             mp.seekTo(safe)
-            if (_state.value.saveProgress) PodcastStorage.savePosition(this, _state.value.episodeId, safe, maxDur)
+            PodcastStorage.savePosition(this, _state.value.episodeId, safe, maxDur)
             _state.value = _state.value.copy(currentPositionMs = safe, durationMs = maxDur)
             updateMediaSessionPlaybackState()
         }
@@ -378,7 +390,7 @@ class PodcastPlaybackService : Service() {
     private fun persistCurrentPosition() {
         val st = _state.value
         val mp = mediaPlayer
-        if (st.saveProgress && st.episodeId.isNotBlank() && mp != null) {
+        if (st.episodeId.isNotBlank() && mp != null) {
             runCatching {
                 val pos = mp.currentPosition.coerceAtLeast(0)
                 val dur = mp.duration.coerceAtLeast(st.durationMs)
@@ -667,6 +679,30 @@ class PodcastPlaybackService : Service() {
                 putExtra(EXTRA_QUEUE_INDEX, startIndex)
             }
             ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun resumeLastPlayed(context: Context): Boolean {
+            val last = PodcastStorage.getLastPlayed(context) ?: return false
+            val cur = _state.value
+            if (cur.episodeId == last.trackId && cur.isPlaying) {
+                return true
+            }
+            if (cur.episodeId == last.trackId && !cur.isPlaying && cur.episodeId.isNotBlank()) {
+                sendAction(context, ACTION_TOGGLE)
+                return true
+            }
+            val isLocal = !last.audioPathOrUrl.startsWith("http", ignoreCase = true)
+            val intent = Intent(context, PodcastPlaybackService::class.java).apply {
+                action = if (last.showId.startsWith("quran_") || isLocal) ACTION_PLAY_DIRECT else ACTION_PLAY_EPISODE
+                putExtra(EXTRA_SHOW_ID, last.showId)
+                putExtra(EXTRA_SHOW_TITLE, last.showTitle)
+                putExtra(EXTRA_EPISODE_ID, last.trackId)
+                putExtra(EXTRA_EPISODE_TITLE, last.title)
+                putExtra(EXTRA_AUDIO_URL, last.audioPathOrUrl)
+                putExtra(EXTRA_DURATION_LABEL, last.durationLabel)
+            }
+            ContextCompat.startForegroundService(context, intent)
+            return true
         }
 
         fun seekTo(context: Context, positionMs: Int) {

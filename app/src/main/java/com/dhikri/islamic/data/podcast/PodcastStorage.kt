@@ -8,15 +8,59 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
+data class LastPlayedTrack(
+    val showId: String,
+    val showTitle: String,
+    val trackId: String,
+    val title: String,
+    val audioPathOrUrl: String,
+    val durationLabel: String,
+    val saveProgress: Boolean
+)
+
 object PodcastStorage {
 
     private const val PREFS_PROGRESS = "dhikri_podcast_progress"
     private const val PREFS_OFFLINE_META = "dhikri_podcast_offline_meta"
     private const val PODCAST_DIR = "podcasts"
+    private const val PREFS_LAST_PLAYED = "dhikri_last_played_track"
 
     private fun keyHash(episodeId: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(episodeId.toByteArray(Charsets.UTF_8))
         return digest.take(12).joinToString("") { "%02x".format(it) }
+    }
+
+
+    // --- Last Played Track (Podcast or Quran Recitation) ---
+
+    fun saveLastPlayed(context: Context, track: LastPlayedTrack) {
+        if (track.trackId.isBlank() || track.audioPathOrUrl.isBlank()) return
+        context.applicationContext.getSharedPreferences(PREFS_LAST_PLAYED, Context.MODE_PRIVATE)
+            .edit()
+            .putString("showId", track.showId)
+            .putString("showTitle", track.showTitle)
+            .putString("trackId", track.trackId)
+            .putString("title", track.title)
+            .putString("audioPathOrUrl", track.audioPathOrUrl)
+            .putString("durationLabel", track.durationLabel)
+            .putBoolean("saveProgress", track.saveProgress)
+            .apply()
+    }
+
+    fun getLastPlayed(context: Context): LastPlayedTrack? {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_LAST_PLAYED, Context.MODE_PRIVATE)
+        val trackId = prefs.getString("trackId", null).orEmpty()
+        val audio = prefs.getString("audioPathOrUrl", null).orEmpty()
+        if (trackId.isBlank() || audio.isBlank()) return null
+        return LastPlayedTrack(
+            showId = prefs.getString("showId", "").orEmpty(),
+            showTitle = prefs.getString("showTitle", "").orEmpty(),
+            trackId = trackId,
+            title = prefs.getString("title", "").orEmpty(),
+            audioPathOrUrl = audio,
+            durationLabel = prefs.getString("durationLabel", "").orEmpty(),
+            saveProgress = prefs.getBoolean("saveProgress", true)
+        )
     }
 
     // --- Resume Position Persistence ---
