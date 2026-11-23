@@ -374,4 +374,12 @@ object PrayerTimesCalculator {
         if (r < 0) r += 24.0
         return r
     }
+
+    fun formatCountdown(millis: Long): String {
+        val totalSec = (millis / 1000L).coerceAtLeast(0L)
+        val h = totalSec / 3600L
+        val m = (totalSec % 3600L) / 60L
+        val s = totalSec % 60L
+        return "%02d:%02d:%02d".format(h, m, s)
+    }
 }
