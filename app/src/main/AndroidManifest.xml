@@ -50,7 +50,8 @@
         <service
             android:name=".data.podcast.PodcastPlaybackService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

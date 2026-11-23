@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +58,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
     var episodeQuery by remember { mutableStateOf("") }
     var offlineOnlyFilter by remember { mutableStateOf(false) }
     var newestFirst by remember { mutableStateOf(false) }
+    val episodeListState = rememberLazyListState()
 
     BackHandler(enabled = selectedShow != null) {
         selectedShow = null
@@ -68,6 +72,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
         selectedShow = show
         episodeQuery = ""
         offlineOnlyFilter = false
+        newestFirst = false
         loadError = null
         isLoadingEpisodes = true
         scope.launch {
@@ -85,6 +90,25 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                     } else null
                     isLoadingEpisodes = false
                 }
+        }
+    }
+
+    // Auto-open playing podcast show and scroll directly to the active episode when tapped from Home mini-player
+    LaunchedEffect(Unit) {
+        if (selectedShow == null && playback.episodeId.isNotBlank() && !playback.showId.startsWith("quran_")) {
+            val activeShow = IslamicPodcastRepository.shows.firstOrNull { it.id == playback.showId }
+            if (activeShow != null) {
+                loadShowEpisodes(activeShow)
+            }
+        }
+    }
+
+    LaunchedEffect(episodes, playback.episodeId) {
+        if (selectedShow != null && playback.episodeId.isNotBlank() && episodes.isNotEmpty()) {
+            val idx = episodes.indexOfFirst { it.id == playback.episodeId }
+            if (idx >= 0) {
+                runCatching { episodeListState.scrollToItem(idx) }
+            }
         }
     }
 
@@ -213,6 +237,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                         ) {
                             Text(formatMillis(playback.currentPositionMs), color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
 
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -256,6 +281,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                                 ) {
                                     Icon(Icons.Default.Forward10, contentDescription = "تقديم 15 ثانية", tint = Color.White)
                                 }
+                            }
                             }
 
                             Text(
@@ -399,7 +425,10 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            modifier = Modifier.clickable { newestFirst = !newestFirst },
+                            modifier = Modifier.clickable {
+                                newestFirst = !newestFirst
+                                scope.launch { episodeListState.scrollToItem(0) }
+                            },
                             shape = RoundedCornerShape(12.dp),
                             color = if (newestFirst) EmeraldDark else cardBg,
                             border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.5f))
@@ -491,6 +520,7 @@ fun IslamicPodcastScreen(onBack: () -> Unit) {
                     }
                     else -> {
                         LazyColumn(
+                            state = episodeListState,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 18.dp)
                         ) {

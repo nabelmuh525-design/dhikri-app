@@ -4,6 +4,7 @@ import android.icu.text.DateFormat
 import android.icu.util.Calendar
 import android.icu.util.ULocale
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,15 +32,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dhikri.islamic.R
+import com.dhikri.islamic.data.podcast.PodcastPlaybackService
 import com.dhikri.islamic.domain.util.PrayerTimesCalculator
 import com.dhikri.islamic.ui.theme.EmeraldDark
 import com.dhikri.islamic.ui.theme.HafsFontFamily
@@ -67,6 +76,7 @@ fun HomeScreen(
     val todayTasbih by viewModel.todayTasbihTotal.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val availableUpdate by viewModel.availableUpdate.collectAsState()
+    val activePlayback by PodcastPlaybackService.state.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
     val context = LocalContext.current
 
@@ -242,6 +252,102 @@ fun HomeScreen(
                         thickness = 1.dp,
                         color = EmeraldDark.copy(alpha = 0.55f)
                     )
+                }
+            }
+
+            // Translucent Floating Mini-Player (ONLY visible when Quran or Podcast is playing)
+            if (activePlayback.episodeId.isNotBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 72.dp)
+                        .clickable {
+                            if (activePlayback.showId.startsWith("quran_")) {
+                                onOpenRecitations()
+                            } else {
+                                onOpenPodcasts()
+                            }
+                        },
+                    shape = RoundedCornerShape(18.dp),
+                    color = EmeraldDark.copy(alpha = 0.72f),
+                    border = BorderStroke(1.dp, SoftGold.copy(alpha = 0.7f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(SoftGold)
+                                .clickable {
+                                    PodcastPlaybackService.sendAction(context, PodcastPlaybackService.ACTION_TOGGLE)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (activePlayback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (activePlayback.isPlaying) "إيقاف مؤقت" else "تشغيل",
+                                tint = EmeraldDark,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = activePlayback.episodeTitle,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = activePlayback.showTitle,
+                                color = SoftGold,
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                ModernSeek15IconButton(
+                                    isForward = false,
+                                    onClick = {
+                                        PodcastPlaybackService.sendAction(context, PodcastPlaybackService.ACTION_REWIND)
+                                    }
+                                )
+                                ModernSeek15IconButton(
+                                    isForward = true,
+                                    onClick = {
+                                        PodcastPlaybackService.sendAction(context, PodcastPlaybackService.ACTION_FORWARD)
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                PodcastPlaybackService.sendAction(context, PodcastPlaybackService.ACTION_STOP)
+                            },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "إغلاق المشغل",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -728,5 +834,64 @@ private fun HomeGradientCard(
                 maxLines = 1
             )
         }
+    }
+}
+
+
+@Composable
+private fun ModernSeek15IconButton(
+    isForward: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val stroke = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round)
+            val tint = Color(0xFFFFF3D1)
+            if (isForward) {
+                drawArc(
+                    color = tint,
+                    startAngle = -55f,
+                    sweepAngle = 290f,
+                    useCenter = false,
+                    style = stroke
+                )
+                val tipX = size.width * 0.77f
+                val tipY = size.height * 0.16f
+                val arrow = Path().apply {
+                    moveTo(tipX - 3.5.dp.toPx(), tipY - 1.5.dp.toPx())
+                    lineTo(tipX, tipY)
+                    lineTo(tipX - 1.2.dp.toPx(), tipY + 3.6.dp.toPx())
+                }
+                drawPath(path = arrow, color = tint, style = stroke)
+            } else {
+                drawArc(
+                    color = tint,
+                    startAngle = -125f,
+                    sweepAngle = -290f,
+                    useCenter = false,
+                    style = stroke
+                )
+                val tipX = size.width * 0.23f
+                val tipY = size.height * 0.16f
+                val arrow = Path().apply {
+                    moveTo(tipX + 3.5.dp.toPx(), tipY - 1.5.dp.toPx())
+                    lineTo(tipX, tipY)
+                    lineTo(tipX + 1.2.dp.toPx(), tipY + 3.6.dp.toPx())
+                }
+                drawPath(path = arrow, color = tint, style = stroke)
+            }
+        }
+        Text(
+            text = "15",
+            color = Color(0xFFFFF3D1),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

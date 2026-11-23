@@ -7,6 +7,8 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 enum class PodcastCategory(val labelArabic: String) {
@@ -32,6 +34,7 @@ data class PodcastEpisode(
     val audioUrl: String,
     val durationLabel: String,
     val publishedLabel: String,
+    val publishedMillis: Long = 0L,
     val summary: String
 )
 
@@ -60,6 +63,14 @@ object IslamicPodcastRepository {
             hostArabic = "د. عبد الرحمن ذاكر الهاشمي",
             descriptionArabic = "جلسات في فقه النفس في القرآن والتزكية وبناء الوعي النفسي والتربوي.",
             rssUrl = "https://anchor.fm/s/ef921ef0/podcast/rss",
+            category = PodcastCategory.FAITH
+        ),
+        PodcastShow(
+            id = "samir_mustafa",
+            titleArabic = "دروس الشيخ سمير مصطفى",
+            hostArabic = "الشيخ سمير مصطفى — القناة الرسمية",
+            descriptionArabic = "دروس ومحاضرات صوتية نقية في السيرة النبوية والرقائق والتربية الإيمانية.",
+            rssUrl = "https://storage.googleapis.com/cvsender/cv/podcast_feed.xml",
             category = PodcastCategory.FAITH
         ),
         PodcastShow(
@@ -186,6 +197,7 @@ object IslamicPodcastRepository {
         var audioUrl = ""
         var duration = ""
         var pubDate = ""
+        var pubMillis = 0L
         var description = ""
         var guid = ""
 
@@ -200,13 +212,18 @@ object IslamicPodcastRepository {
                         audioUrl = ""
                         duration = ""
                         pubDate = ""
+                        pubMillis = 0L
                         description = ""
                         guid = ""
                     } else if (inItem) {
                         when (tag) {
                             "title" -> title = safeNextText(parser).trim()
                             "guid" -> guid = safeNextText(parser).trim()
-                            "pubdate" -> pubDate = formatShortDate(safeNextText(parser).trim())
+                            "pubdate" -> {
+                                val rawDate = safeNextText(parser).trim()
+                                pubDate = formatShortDate(rawDate)
+                                pubMillis = parsePubDateMillis(rawDate)
+                            }
                             "itunes:duration", "duration" -> duration = formatDurationText(safeNextText(parser).trim())
                             "description", "itunes:summary" -> {
                                 if (description.isBlank()) {
@@ -233,6 +250,7 @@ object IslamicPodcastRepository {
                                     audioUrl = audioUrl,
                                     durationLabel = duration,
                                     publishedLabel = pubDate,
+                                    publishedMillis = pubMillis,
                                     summary = description
                                 )
                             )
@@ -242,8 +260,14 @@ object IslamicPodcastRepository {
             }
             eventType = parser.next()
         }
-        // RSS feeds list newest episodes first; reverse so all series start from Episode 1 -> Last
-        return episodes.reversed()
+        // Sort chronologically ascending (Oldest / Episode 1 first) using parsed pubDate when available,
+        // falling back to reversing RSS newest-first order
+        val hasValidDates = episodes.count { it.publishedMillis > 0L } >= (episodes.size / 2).coerceAtLeast(1)
+        return if (hasValidDates) {
+            episodes.sortedWith(compareBy<PodcastEpisode> { it.publishedMillis }.thenBy { it.title })
+        } else {
+            episodes.reversed()
+        }
     }
 
     private fun safeNextText(parser: XmlPullParser): String {
@@ -258,6 +282,23 @@ object IslamicPodcastRepository {
             .replace("&amp;", "&")
             .replace("&quot;", "\"")
         return whitespaceRegex.replace(stripped, " ").trim().take(160)
+    }
+
+    private fun parsePubDateMillis(raw: String): Long {
+        if (raw.isBlank()) return 0L
+        val patterns = listOf(
+            "EEE, dd MMM yyyy HH:mm:ss Z",
+            "EEE, d MMM yyyy HH:mm:ss Z",
+            "EEE, dd MMM yyyy HH:mm:ss zzz",
+            "dd MMM yyyy HH:mm:ss Z"
+        )
+        for (pattern in patterns) {
+            runCatching {
+                val sdf = SimpleDateFormat(pattern, Locale.US)
+                sdf.parse(raw)?.time?.let { return it }
+            }
+        }
+        return 0L
     }
 
     private fun formatShortDate(raw: String): String {

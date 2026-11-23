@@ -458,6 +458,12 @@ class PodcastPlaybackService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // User closed the app completely from Recents -> save progress and stop audio immediately
+        stopAndClose()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         persistCurrentPosition()
         releasePlayer()
